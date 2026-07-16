@@ -1170,23 +1170,6 @@ function pickSubjClass(bid){
   }
 }
 
-// Drop in TEACHER view → pick room first
-function oDropTeacher(e,tch,d,p){
-  e.preventDefault();e.currentTarget.classList.remove('drop-ok');
-  if(!drag)return;
-  var b=gB(drag.bid);
-  if(!b)return;
-  if(b.teacher!==tch){toast('\u0e27\u0e34\u0e0a\u0e32\u0e19\u0e35\u0e49\u0e04\u0e23\u0e39\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07');return;}
-  var mv=e.dataTransfer.getData('mv');
-  if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
-  if(b.room&&ROOM_CAP[b.room]){
-    sE(b.room,d,p,{blockId:drag.bid,groups:b.groups||[b.classGroup]});
-    render();
-  } else {
-    _pendingDrop={bid:drag.bid,d:d,p:p,mv:mv?JSON.parse(mv):null};
-    openRoomPickDrop(drag.bid,d,p);
-  }
-}
 function cCellTeacher(tch,d,p){
   var occupied=RM.some(function(r){
     var e=gE(r,d,p);return e&&gB(e.blockId)&&gB(e.blockId).teacher===tch;
