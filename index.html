@@ -5,6 +5,7 @@
 <title>PTECH Timetable</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 /* ─── RESET & TOKENS ─── */
 *{margin:0;padding:0;box-sizing:border-box}
@@ -374,6 +375,12 @@ input,select,textarea{font-family:inherit}
 <header class="topbar">
   <div class="logo">PTECH <span>Timetable</span></div>
   <div class="topbar-sep"></div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="draft-label">เทอม:</span>
+    <select class="ws-sel" id="term-sel" onchange="switchTerm(this.value)" style="min-width:150px;padding:6px 10px;font-size:13px"></select>
+    <button class="tbtn tbtn-ghost" onclick="openTermsMgr()" title="จัดการเทอม">🗂</button>
+  </div>
+  <div class="topbar-sep"></div>
   <div class="draft-bar">
     <span class="draft-label">Draft:</span>
     <input class="draft-name" id="draft-name" type="text" value="ตาราง ภาค 1/2568" placeholder="ชื่อ draft...">
@@ -420,6 +427,7 @@ input,select,textarea{font-family:inherit}
         <button class="ibtn ibtn-pri" id="at-subj" style="flex:1;font-size:11px" onclick="setAddTab('subj')">วิชา</button>
         <button class="ibtn" id="at-tch" style="flex:1;font-size:11px" onclick="setAddTab('tch')">ครู</button>
         <button class="ibtn" id="at-room" style="flex:1;font-size:11px" onclick="setAddTab('room')">ห้อง</button>
+        <button class="ibtn" id="at-class" style="flex:1;font-size:11px" onclick="setAddTab('class')">ชั้นเรียน</button>
       </div>
       <!-- add subject -->
       <div id="add-subj">
@@ -454,6 +462,16 @@ input,select,textarea{font-family:inherit}
         <button class="ibtn ibtn-pri" style="width:100%;margin-top:4px" onclick="addRoom()">+ เพิ่มห้อง</button>
         <div class="section-head">ห้องทั้งหมด</div>
         <div id="room-mgr-list"></div>
+      </div>
+      <!-- add class group -->
+      <div id="add-class-pane" style="display:none">
+        <div class="row2">
+          <div class="fld"><label>ชื่อชั้นเรียน</label><input type="text" id="new-class" placeholder="เช่น ปวช1/1"></div>
+          <div class="fld"><label>จำนวนนักเรียน</label><input type="number" id="new-class-n" min="1" max="500" value="20"></div>
+        </div>
+        <button class="ibtn ibtn-pri" style="width:100%;margin-top:4px" onclick="addClassGroup()">+ เพิ่มชั้นเรียน</button>
+        <div class="section-head">ชั้นเรียนทั้งหมด</div>
+        <div id="class-mgr-list"></div>
       </div>
     </div>
   </div>
@@ -560,6 +578,30 @@ input,select,textarea{font-family:inherit}
   </div>
 </div>
 
+<!-- TERMS MANAGER MODAL -->
+<div class="overlay" id="terms-modal">
+  <div class="modal modal-lg">
+    <h2>🗂 จัดการเทอม</h2>
+    <div class="modal-sub">แต่ละเทอมมีรายวิชา ครู ห้อง และชั้นเรียนเป็นของตัวเอง แยกจากเทอมอื่น</div>
+    <div class="modal-body">
+      <div id="terms-list" class="draft-list"></div>
+      <div class="fld" style="margin-top:10px">
+        <label>สร้างเทอมใหม่</label>
+        <input type="text" id="new-term-name" placeholder="ชื่อเทอม เช่น ภาคเรียนที่ 2/2568">
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="ibtn" style="flex:1" onclick="createTerm('blank')">+ เทอมว่าง</button>
+          <button class="ibtn" style="flex:1" onclick="createTerm('duplicate')">+ คัดลอกจากเทอมปัจจุบัน</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="ibtn" onclick="exportTermFile()">⬇ Export เทอมนี้</button>
+      <label class="ibtn" style="cursor:pointer">⬆ Import เทอม<input type="file" class="file-input" accept=".json" onchange="importTermFile(this)"></label>
+      <button class="ibtn" onclick="closeTermsMgr()">ปิด</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="conflict-box" id="conflict-box">
   <h4>⚠ <span id="conflict-title"></span></h4>
@@ -596,6 +638,9 @@ var roomCtx = null, selRoom = null;
 var pickCtx = null, _addTab = 'subj';
 var _dirty  = false;
 var _currentDraftId = 'draft_default';
+var _currentTermId = null;   // เทอมที่กำลังใช้งานอยู่ — ตั้งค่าโดย loadTermData()
+var TEACHERS_BASE = TCH.slice();        // รายชื่อครูตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
+var ROOMS_BASE = Object.assign({},ROOM_CAP); // ห้องตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
 
 // ═══════════════════════════════════════════════
 // SUPABASE (multi-user backend)
@@ -1415,12 +1460,13 @@ function closeEditModal(){document.getElementById('edit-modal').classList.remove
 // ═══════════════════════════════════════════════
 function setAddTab(t){
   _addTab=t;
-  ['subj','tch','room'].forEach(function(x){
+  ['subj','tch','room','class'].forEach(function(x){
     document.getElementById('at-'+x).className='ibtn'+(t===x?' ibtn-pri':'');
-    document.getElementById('add-'+(x==='room'?'room-pane':x==='tch'?'tch-pane':'subj')).style.display=t===x?'block':'none';
+    document.getElementById('add-'+(x==='room'?'room-pane':x==='tch'?'tch-pane':x==='class'?'class-pane':'subj')).style.display=t===x?'block':'none';
   });
   if(t==='tch')renderTchList();
   if(t==='room')renderRoomMgr();
+  if(t==='class')renderClassMgr();
 }
 function popAddForms(){
   var h='<option value="">\u2014 \u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38 \u2014</option>';
@@ -1494,6 +1540,46 @@ function renderRoomMgr(){
       +'<div><div style="font-size:11px;font-weight:500">'+esc(r)+'</div><div style="font-size:10px;color:var(--ink3)">'+ROOM_CAP[r]+'\u0e04\u0e19</div></div>'
       +'<button class="bcard-edit" style="display:flex;position:static" onclick="editRoomCap(\''+esc(r)+'\')">&#9998;</button>'
       +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeRoom(\''+esc(r)+'\')">×</button>'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
+
+function saveTermRoster(){
+  if(!_currentTermId)return;
+  supabase.from('terms').update({classes:CL,students:STUDENTS}).eq('id',_currentTermId)
+    .then(function(res){ if(res&&res.error)toast('บันทึกชั้นเรียนไม่สำเร็จ: '+res.error.message,'err'); });
+}
+function addClassGroup(){
+  var name=document.getElementById('new-class').value.trim();
+  var n=parseInt(document.getElementById('new-class-n').value)||0;
+  if(!name){toast('กรุณาระบุชื่อชั้นเรียน');return;}
+  if(CL.indexOf(name)>=0){toast('มีอยู่แล้ว');return;}
+  CL.push(name);CL.sort();
+  STUDENTS[name]=n;
+  document.getElementById('new-class').value='';
+  saveTermRoster();
+  popAddForms();popViewSel();renderClassMgr();render();toast('เพิ่มชั้นเรียนแล้ว');
+}
+function editClassStudents(name){
+  var cur=STUDENTS[name]||0,val=prompt('แก้ไขจำนวนนักเรียน '+name+' (ตอนนี้ '+cur+')',cur);
+  var n=parseInt(val);if(isNaN(n)||n<0)return;
+  STUDENTS[name]=n;saveTermRoster();renderClassMgr();render();
+}
+function removeClassGroup(name){
+  if(!confirm('ลบชั้นเรียน '+name+'?'))return;
+  CL=CL.filter(function(c){return c!==name;});
+  delete STUDENTS[name];
+  saveTermRoster();
+  popAddForms();popViewSel();renderClassMgr();render();
+}
+function renderClassMgr(){
+  var el=document.getElementById('class-mgr-list'),h='';
+  CL.slice().sort().forEach(function(c){
+    h+='<div class="bcard" style="cursor:default;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;padding:6px 8px">'
+      +'<div><div style="font-size:11px;font-weight:500">'+esc(c)+'</div><div style="font-size:10px;color:var(--ink3)">'+(STUDENTS[c]||0)+' คน</div></div>'
+      +'<button class="bcard-edit" style="display:flex;position:static" onclick="editClassStudents(\''+esc(c)+'\')">&#9998;</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeClassGroup(\''+esc(c)+'\')">×</button>'
       +'</div>';
   });
   el.innerHTML=h;
@@ -1648,15 +1734,31 @@ function collectDraftData(){
   var deletedIds=Object.keys(baseIds).filter(function(id){
     return !blocks.find(function(b){return b.id===id;});
   });
+  // ครู/ห้อง: diff เทียบกับ baseline ของเทอม (TEACHERS_BASE/ROOMS_BASE) แทนการเก็บสำเนาเต็ม
+  // เพื่อให้แต่ละ draft มีรายชื่อครู/ห้องเป็นของตัวเอง (เพิ่ม/ลบแล้วไม่กระทบ draft อื่นในเทอมเดียวกัน)
+  var teachersAdded=TCH.filter(function(t){return TEACHERS_BASE.indexOf(t)<0;});
+  var teachersRemoved=TEACHERS_BASE.filter(function(t){return TCH.indexOf(t)<0;});
+  var roomsAdded={},roomsEditedCap={},roomsRemoved=[];
+  Object.keys(ROOM_CAP).forEach(function(r){
+    if(ROOMS_BASE[r]===undefined)roomsAdded[r]=ROOM_CAP[r];
+    else if(ROOMS_BASE[r]!==ROOM_CAP[r])roomsEditedCap[r]=ROOM_CAP[r];
+  });
+  Object.keys(ROOMS_BASE).forEach(function(r){
+    if(ROOM_CAP[r]===undefined)roomsRemoved.push(r);
+  });
   return {
     placed:placed,
-    rooms:ROOM_CAP,
-    teachers:TCH,
+    teachersAdded:teachersAdded,
+    teachersRemoved:teachersRemoved,
+    roomsAdded:roomsAdded,
+    roomsEditedCap:roomsEditedCap,
+    roomsRemoved:roomsRemoved,
     userBlocks:userBlocks,
     editedBlocks:editedBlocks,
     deletedIds:deletedIds,
     ts:Date.now(),
-    dataVersion:DATA_VERSION
+    dataVersion:DATA_VERSION,
+    termId:_currentTermId
   };
 }
 
@@ -1680,18 +1782,31 @@ function loadDraftData(data){
   if(data.userBlocks&&data.userBlocks.length){
     data.userBlocks.forEach(function(b){blocks.push(Object.assign({},b));});
   }
-  // 5. Restore rooms & teachers (user additions only)
-  if(data.rooms){
-    Object.keys(data.rooms).forEach(function(r){
-      ROOM_CAP[r]=data.rooms[r]; // restore all room capacities (user may have edited)
-      if(RM.indexOf(r)<0)RM.push(r);
-    });
-    RM.sort();
+  // 5. Restore rooms & teachers — รีเซ็ตกลับไป baseline ของเทอมก่อนเสมอ แล้วค่อย apply diff ของ draft นี้
+  // (ถ้าไม่รีเซ็ตก่อน ห้อง/ครูที่เพิ่งลบใน draft อื่นจะ "ฟื้นคืนชีพ" กลับมาเวลาโหลด draft เก่า)
+  TCH=TEACHERS_BASE.slice();
+  ROOM_CAP=Object.assign({},ROOMS_BASE);
+  if(data.teachersAdded||data.teachersRemoved||data.roomsAdded||data.roomsEditedCap||data.roomsRemoved){
+    // รูปแบบใหม่: diff เทียบกับ baseline ของเทอม
+    (data.teachersAdded||[]).forEach(function(t){if(TCH.indexOf(t)<0)TCH.push(t);});
+    if(data.teachersRemoved&&data.teachersRemoved.length){
+      var remT={};data.teachersRemoved.forEach(function(t){remT[t]=true;});
+      TCH=TCH.filter(function(t){return !remT[t];});
+    }
+    if(data.roomsAdded)Object.keys(data.roomsAdded).forEach(function(r){ROOM_CAP[r]=data.roomsAdded[r];});
+    if(data.roomsEditedCap)Object.keys(data.roomsEditedCap).forEach(function(r){if(ROOM_CAP[r]!==undefined)ROOM_CAP[r]=data.roomsEditedCap[r];});
+    if(data.roomsRemoved)data.roomsRemoved.forEach(function(r){delete ROOM_CAP[r];});
+  } else {
+    // รูปแบบเก่า (draft ที่บันทึกไว้ก่อนมีระบบเทอม) — สำเนาเต็มแบบ merge เข้าไปเหมือนพฤติกรรมเดิม เพื่อให้ยังโหลดได้
+    if(data.rooms){
+      Object.keys(data.rooms).forEach(function(r){ROOM_CAP[r]=data.rooms[r];});
+    }
+    if(data.teachers){
+      data.teachers.forEach(function(t){if(TCH.indexOf(t)<0)TCH.push(t);});
+    }
   }
-  if(data.teachers){
-    data.teachers.forEach(function(t){if(TCH.indexOf(t)<0)TCH.push(t);});
-    TCH.sort();
-  }
+  RM=Object.keys(ROOM_CAP).sort();
+  TCH.sort();
   // 6. Restore placed slots
   initTT();
   // Build id lookup — direct match first, then fuzzy match by subject+groups
@@ -1706,6 +1821,7 @@ function loadDraftData(data){
   });
   clearTimeout(_autoSaveTimer); // หยุด timer ระหว่าง restore
   var placed=data.placed||{};
+  var fuzzyCount=0;
   Object.keys(placed).forEach(function(r){
     if(!tt[r])initTTRoom(r);
     Object.keys(placed[r]).forEach(function(d){
@@ -1727,6 +1843,7 @@ function loadDraftData(data){
               resolvedId=sigMap[sig3]||e.blockId;
             }
           }
+          if(resolvedId)fuzzyCount++;
         }
         if(resolvedId){
           restoreEntry(r,d,parseInt(p),Object.assign({},e,{blockId:resolvedId}));
@@ -1734,6 +1851,9 @@ function loadDraftData(data){
       });
     });
   });
+  if(fuzzyCount>0){
+    toast('⚠ '+fuzzyCount+' คาบถูกจับคู่วิชาใหม่อัตโนมัติ (id เดิมหาไม่เจอ ใช้ชื่อวิชา+กลุ่มแทน) — โปรดตรวจสอบความถูกต้อง','warn');
+  }
   setDirty(false);
   popAddForms();popViewSel();render();
 }
@@ -1747,7 +1867,7 @@ async function saveDraft(){
   var data=collectDraftData();
   try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(data));localStorage.removeItem('ptech_snapshot');}catch(e0){}
   try{
-    var res=await supabase.from('drafts').upsert({id:_currentDraftId,name:name,data:data,ts:data.ts,updated_by:currentUserEmail});
+    var res=await supabase.from('drafts').upsert({id:_currentDraftId,term_id:_currentTermId,name:name,data:data,ts:data.ts,updated_by:currentUserEmail});
     if(res.error) throw res.error;
     setDirty(false);
     // Update timestamp in UI
@@ -1768,7 +1888,9 @@ async function saveDraft(){
 
 async function getDraftList(){
   try{
-    var res=await supabase.from('drafts').select('id,name,ts').order('ts',{ascending:false});
+    var q=supabase.from('drafts').select('id,name,ts').order('ts',{ascending:false});
+    if(_currentTermId)q=q.eq('term_id',_currentTermId);
+    var res=await q;
     if(res.error) throw res.error;
     return res.data||[];
   }catch(e){
@@ -1847,6 +1969,176 @@ function newDraft(){
   document.getElementById('draft-name').value='ตารางใหม่';
   initTT();blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   setDirty(false);render();closeDraftsMgr();toast('Draft ใหม่พร้อมแล้ว');
+}
+
+// ═══════════════════════════════════════════════
+// TERM MANAGER (สลับ/สร้าง/ลบเทอม)
+// ═══════════════════════════════════════════════
+async function popTermSel(){
+  var sel=document.getElementById('term-sel');
+  if(!sel)return;
+  try{
+    var res=await supabase.from('terms').select('id,name').order('created_at',{ascending:true});
+    var terms=(res&&res.data)||[];
+    if(_currentTermId&&!terms.find(function(t){return t.id===_currentTermId;})){
+      terms=terms.concat([{id:_currentTermId,name:'เทอมปัจจุบัน'}]);
+    }
+    sel.innerHTML=terms.map(function(t){return '<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>';}).join('');
+    if(_currentTermId)sel.value=_currentTermId;
+  }catch(e){ /* ออฟไลน์ — ปล่อย dropdown ไว้เฉยๆ */ }
+}
+
+function openTermsMgr(){
+  renderTermList();
+  document.getElementById('terms-modal').classList.add('open');
+}
+function closeTermsMgr(){document.getElementById('terms-modal').classList.remove('open');}
+
+async function renderTermList(){
+  var el=document.getElementById('terms-list');
+  el.innerHTML='<div style="text-align:center;color:var(--ink3);padding:16px 0">กำลังโหลด...</div>';
+  var res;
+  try{ res=await supabase.from('terms').select('id,name,created_at').order('created_at',{ascending:true}); }
+  catch(e){ el.innerHTML='<div style="text-align:center;color:var(--red);padding:16px 0">โหลดรายการเทอมไม่สำเร็จ</div>'; return; }
+  var terms=(res&&res.data)||[];
+  if(!terms.length){el.innerHTML='<div style="text-align:center;color:var(--ink3);padding:16px 0">ยังไม่มีเทอม</div>';return;}
+  var h='';
+  terms.forEach(function(t){
+    var isCur=t.id===_currentTermId;
+    h+='<div class="draft-item" data-tid="'+esc(t.id)+'" style="'+(isCur?'border-color:var(--blue);background:var(--blue-bg);':'')+'">'
+      +'<div class="ti-switch" data-tid="'+esc(t.id)+'" style="flex:1;cursor:pointer;min-width:0">'
+      +'<div style="font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">'
+      +(isCur?'<span style="font-size:10px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:9px">กำลังใช้งาน</span>':'')
+      +esc(t.name)+'</div></div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0">'
+      +'<button class="ibtn ti-ren" data-tid="'+esc(t.id)+'" style="font-size:11px" title="เปลี่ยนชื่อ">✎</button>'
+      +'<button class="ibtn ti-del" data-tid="'+esc(t.id)+'" style="font-size:11px;color:var(--red);border-color:var(--red-mid)" title="ลบเทอม">ลบ</button>'
+      +'</div></div>';
+  });
+  el.innerHTML=h;
+  el.querySelectorAll('.ti-switch').forEach(function(btn){btn.onclick=function(){switchTerm(this.dataset.tid);};});
+  el.querySelectorAll('.ti-ren').forEach(function(btn){btn.onclick=function(e){e.stopPropagation();renameTerm(this.dataset.tid);};});
+  el.querySelectorAll('.ti-del').forEach(function(btn){btn.onclick=function(e){e.stopPropagation();deleteTerm(this.dataset.tid);};});
+}
+
+async function switchTerm(id){
+  if(!id||id===_currentTermId){popTermSel();return;}
+  if(_dirty&&!confirm('มีงานค้างที่ยังไม่ได้บันทึก ต้องการสลับเทอมหรือไม่?')){popTermSel();return;}
+  try{
+    var res=await supabase.from('terms').select('*').eq('id',id).single();
+    if(res.error||!res.data){toast('ไม่พบเทอมนี้','err');popTermSel();return;}
+    loadTermData(res.data);
+    popTermSel();
+    var dres=await supabase.from('drafts').select('*').eq('term_id',_currentTermId).order('ts',{ascending:false}).limit(1);
+    var last=dres.data&&dres.data[0];
+    if(last){
+      _currentDraftId=last.id;
+      document.getElementById('draft-name').value=last.name||'Draft';
+      loadDraftData(last.data);
+    }else{
+      _currentDraftId='draft_'+Date.now();
+      document.getElementById('draft-name').value='ตารางใหม่';
+      blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
+      setDirty(false);
+      render();
+    }
+    subscribeToDraft(_currentDraftId);
+    closeTermsMgr();
+    toast('สลับไปเทอม: '+res.data.name);
+  }catch(e){toast('สลับเทอมไม่สำเร็จ: '+e.message,'err');popTermSel();}
+}
+
+async function renameTerm(id){
+  var cur=null;
+  try{ var r=await supabase.from('terms').select('name').eq('id',id).single(); cur=r.data&&r.data.name; }catch(e){}
+  var name=prompt('ชื่อเทอมใหม่',cur||'');
+  if(!name)return;
+  try{
+    var res=await supabase.from('terms').update({name:name.trim()}).eq('id',id);
+    if(res.error) throw res.error;
+    renderTermList();popTermSel();
+  }catch(e){toast('เปลี่ยนชื่อไม่สำเร็จ: '+e.message,'err');}
+}
+
+async function deleteTerm(id){
+  if(!confirm('ลบเทอมนี้ทั้งหมด รวมถึง draft ทุกอันในเทอมนี้ด้วย?\nการลบไม่สามารถย้อนกลับได้'))return;
+  try{
+    var dres=await supabase.from('drafts').delete().eq('term_id',id);
+    if(dres.error) throw dres.error;
+    var res=await supabase.from('terms').delete().eq('id',id);
+    if(res.error) throw res.error;
+  }catch(e){toast('ลบเทอมไม่สำเร็จ: '+e.message,'err');return;}
+  toast('ลบเทอมแล้ว');
+  if(id===_currentTermId){
+    var res2=await supabase.from('terms').select('*').order('created_at',{ascending:true}).limit(1);
+    var next=res2.data&&res2.data[0];
+    if(next)await switchTerm(next.id);
+    else toast('ไม่เหลือเทอมในระบบแล้ว กรุณาสร้างเทอมใหม่','warn');
+  }
+  renderTermList();
+}
+
+async function createTerm(mode){
+  var nameInput=document.getElementById('new-term-name');
+  var name=nameInput.value.trim();
+  if(!name){toast('กรุณาระบุชื่อเทอม');return;}
+  var id='term_'+Date.now();
+  var payload={
+    id:id, name:name,
+    blocks_data: mode==='duplicate'?BLOCKS_DATA:[],
+    classes: mode==='duplicate'?CL:[],
+    students: mode==='duplicate'?STUDENTS:{},
+    teachers: mode==='duplicate'?TCH:[],
+    rooms: mode==='duplicate'?ROOM_CAP:{},
+    updated_by: currentUserEmail
+  };
+  try{
+    var res=await supabase.from('terms').insert(payload);
+    if(res.error) throw res.error;
+    nameInput.value='';
+    await switchTerm(id);
+    renderTermList();
+    toast('สร้างเทอมใหม่แล้ว: '+name,'ok');
+  }catch(e){toast('สร้างเทอมไม่สำเร็จ: '+e.message,'err');}
+}
+
+async function exportTermFile(){
+  try{
+    var res=await supabase.from('terms').select('*').eq('id',_currentTermId).single();
+    if(res.error||!res.data){toast('ไม่พบข้อมูลเทอมนี้','err');return;}
+    var blob=new Blob([JSON.stringify({version:1,exportedAt:new Date().toISOString(),term:res.data},null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='PTECH_TERM_'+(res.data.name||'term').replace(/[\s\/\:*?"<>|\[\]]/g,'_')+'.json';
+    a.click();
+    toast('ส่งออกไฟล์เทอมแล้ว ✓','ok');
+  }catch(e){toast('Export เทอมผิดพลาด: '+e.message,'err');}
+}
+
+function importTermFile(input){
+  var file=input.files[0];
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      var parsed=JSON.parse(e.target.result);
+      var t=parsed.term||parsed;
+      if(!t||!t.name){toast('ไฟล์ไม่ถูกต้อง','err');return;}
+      var id='term_'+Date.now();
+      var payload={
+        id:id, name:t.name+' (นำเข้า)',
+        blocks_data:t.blocks_data||[], classes:t.classes||[], students:t.students||{},
+        teachers:t.teachers||[], rooms:t.rooms||{}, updated_by:currentUserEmail
+      };
+      var res=await supabase.from('terms').insert(payload);
+      if(res.error) throw res.error;
+      await switchTerm(id);
+      renderTermList();
+      toast('นำเข้าเทอมแล้ว ✓','ok');
+    }catch(err){toast('นำเข้าไม่สำเร็จ: '+err.message,'err');}
+    input.value='';
+  };
+  reader.readAsText(file);
 }
 
 // ── Export draft ปัจจุบันเป็นไฟล์ JSON (ไม่ขึ้นกับ localStorage) ──
@@ -1993,7 +2285,7 @@ document.addEventListener('keydown',function(e){
 // ═══════════════════════════════════════════════
 // CLOSE OVERLAYS ON BG CLICK
 // ═══════════════════════════════════════════════
-['room-modal','edit-modal','pick-modal','drafts-modal'].forEach(function(id){
+['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
@@ -2038,15 +2330,77 @@ window.addEventListener('beforeunload',function(){
 // Data version = number of blocks (changes when Excel is re-imported)
 var DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
 initTT();
+
+// ═══════════════════════════════════════════════
+// TERMS (ข้อมูลรายวิชา/ครู/ห้อง/ชั้นเรียน แยกตามเทอม)
+// ═══════════════════════════════════════════════
+function loadTermData(t){
+  BLOCKS_DATA = t.blocks_data||[];
+  CL = (t.classes||[]).slice();
+  STUDENTS = Object.assign({},t.students||{});
+  TCH = (t.teachers||[]).slice();
+  ROOM_CAP = Object.assign({},t.rooms||{});
+  RM = Object.keys(ROOM_CAP).sort();
+  TEACHERS_BASE = TCH.slice();
+  ROOMS_BASE = Object.assign({},ROOM_CAP);
+  DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
+  _currentTermId = t.id;
+  try{localStorage.setItem('ptech_last_term',t.id);}catch(e){}
+  initTT();
+}
+
+// เลือกเทอมที่จะใช้งานตอนบูต — ถ้ายังไม่มีตาราง terms เลย ให้สร้างเทอมตั้งต้นจากค่าคงที่เดิม
+// ใช้ id คงที่ + insert เฉยๆ แล้วปล่อยให้ unique-violation ชนกันได้ถ้ามีหลาย client แข่งกันตอนบูตพร้อมกัน
+// (ดีกว่าเช็คจำนวนแถวก่อน insert ซึ่งมี race แข่งกันได้)
+async function resolveActiveTerm(){
+  var res=await supabase.from('terms').select('*').order('created_at',{ascending:true});
+  if(res.error) throw res.error;
+  var terms=res.data||[];
+  if(!terms.length){
+    var seed={
+      id:'term_seed', name:'เทอมปัจจุบัน',
+      blocks_data:BLOCKS_DATA, classes:CL, students:STUDENTS, teachers:TCH, rooms:ROOM_CAP,
+      updated_by:currentUserEmail
+    };
+    try{
+      var ins=await supabase.from('terms').insert(seed);
+      if(ins.error && ins.error.code!=='23505') throw ins.error;
+    }catch(e){ /* client อื่นอาจ insert เทอมตั้งต้นไปก่อนแล้ว ไม่เป็นไร */ }
+    try{ await supabase.from('drafts').update({term_id:'term_seed'}).is('term_id',null); }catch(e){}
+    var res2=await supabase.from('terms').select('*').eq('id','term_seed').single();
+    if(res2.error||!res2.data){
+      toast('ยังไม่ได้สร้างตาราง terms บน Supabase — ทำงานแบบเทอมเดียวชั่วคราว (โปรดรัน SQL migration ก่อน)','warn');
+      return null;
+    }
+    return res2.data;
+  }
+  var lastId=null;
+  try{lastId=localStorage.getItem('ptech_last_term');}catch(e){}
+  var found=lastId&&terms.find(function(x){return x.id===lastId;});
+  return found||terms[0];
+}
+
 async function bootApp(){
   var dot=document.getElementById('sync-dot'),lbl=document.getElementById('sync-label');
   dot.className='sync-dot saving';
   lbl.textContent='กำลังเชื่อมต่อ...';
   try{
-    var res=await supabase.from('drafts').select('*').order('ts',{ascending:false}).limit(1);
+    try{
+      var term=await resolveActiveTerm();
+      if(term)loadTermData(term);
+    }catch(eTerm){
+      console.warn('Term resolve error:',eTerm);
+      toast('โหลดข้อมูลเทอมไม่สำเร็จ — ใช้ข้อมูลตั้งต้นชั่วคราว: '+eTerm.message,'warn');
+    }
+    popTermSel();
+    var q=supabase.from('drafts').select('*').order('ts',{ascending:false}).limit(1);
+    if(_currentTermId)q=q.eq('term_id',_currentTermId);
+    var res=await q;
     if(res.error) throw res.error;
     var last=res.data && res.data[0];
     if(!last){
+      _currentDraftId='draft_'+Date.now();
+      document.getElementById('draft-name').value='ตารางใหม่';
       dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
       subscribeToDraft(_currentDraftId);
       popAddForms();popViewSel();render();
@@ -2239,6 +2593,7 @@ function pmBuildTbl(pv,sel){
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="document.getElementById('PM').style.display='none'" style="padding:8px 20px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;background:#fff">&#xe22;&#xe01;&#xe40;&#xe25;&#xe34;&#xe01;</button>
+      <button onclick="pmExecXLSX()" style="padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">&#128202; Excel</button>
       <button onclick="pmExec()" style="padding:8px 20px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">&#x1f5a8; &#xe1e;&#xe34;&#xe21;&#xe1e;&#xe4c; PDF</button>
     </div>
   </div>
@@ -2366,6 +2721,100 @@ function pmBuildTbl(pv,sel){
   var t=document.createElement('table');t.className='tt';
   t.style.cssText='width:100%;border-collapse:collapse;table-layout:fixed';
   t.innerHTML=h;return t;
+}
+
+// ═══ EXCEL EXPORT (ตารางที่จัดแล้ว) ═══
+// Excel ห้ามใช้ตัวอักษร : \ / ? * [ ] ในชื่อชีท และจำกัดไม่เกิน 31 ตัวอักษร
+// ชื่อชั้นเรียนในระบบนี้ เช่น "ปวช1/1" มี "/" อยู่ในชื่อ จึงต้องกรองก่อนเสมอ
+function safeSheetName(raw,usedNames){
+  var base=String(raw||'Sheet').replace(/[:\\\/\?\*\[\]]/g,'-').trim();
+  if(!base)base='Sheet';
+  if(base.length>31)base=base.substring(0,31);
+  var name=base,i=2;
+  while(usedNames.indexOf(name)>=0){
+    var suffix=' ('+i+')';
+    name=base.substring(0,31-suffix.length)+suffix;
+    i++;
+  }
+  usedNames.push(name);
+  return name;
+}
+
+// เหมือน pmBuildTbl แต่คืนค่าเป็น array ของข้อความล้วน (ไม่ใช่ DOM) สำหรับ SheetJS
+function buildXlsxRows(pv,sel){
+  var rows=[];
+  var header=['วัน/คาบ'];
+  PD.forEach(function(p){header.push('คาบ '+p.id+' ('+p.t+')');});
+  rows.push(header);
+  DY.forEach(function(d){
+    var row=[d];
+    PD.forEach(function(p){
+      var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
+      if(lch){row.push('พักเที่ยง');return;}
+      var parts=[];
+      RM.forEach(function(r){
+        var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
+        var b=gB(e.blockId);if(!b)return;
+        var grps=e.groups||b.groups||[b.classGroup];
+        var show=pv==='room'?r===sel:pv==='teacher'?b.teacher===sel:grps.indexOf(sel)>=0;
+        if(!show)return;
+        var lines=[b.subject];
+        if(pv==='teacher'){
+          if(b.room)lines.push(b.room);
+          if(grps.length)lines.push(grps.join(', '));
+        }else{
+          lines.push(b.teacher+(b.room?' | '+b.room:''));
+          if(pv==='room'&&grps.length)lines.push(grps.join(', '));
+        }
+        parts.push(lines.join('\n'));
+      });
+      row.push(parts.join('\n\n'));
+    });
+    rows.push(row);
+  });
+  return rows;
+}
+
+function pmExecXLSX(){
+  if(typeof XLSX==='undefined'){toast('ไม่สามารถโหลดไลบรารี Excel ได้ (ตรวจอินเทอร์เน็ต)','err');return;}
+  var pv=document.getElementById('PM-view').value;
+  var sel=[];
+  document.querySelectorAll('#PM-grid button').forEach(function(b){if(b._sel)sel.push(b._val||b.title);});
+  if(!sel.length){alert('กรุณาเลือกอย่างน้อย 1');return;}
+  document.getElementById('PM').style.display='none';
+
+  var usedNames=[];
+  var wb=XLSX.utils.book_new();
+
+  // ชีทสรุปรวม — เฉพาะรายการที่เลือกไว้ใน grid เท่านั้น
+  var summaryRows=[['วัน','คาบ','ห้อง','วิชา','ครู','กลุ่ม/ชั้น']];
+  DY.forEach(function(d){
+    PD.forEach(function(p){
+      RM.forEach(function(r){
+        var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
+        var b=gB(e.blockId);if(!b)return;
+        var grps=e.groups||b.groups||[b.classGroup];
+        var show=sel.some(function(s){
+          return pv==='room'?r===s:pv==='teacher'?b.teacher===s:grps.indexOf(s)>=0;
+        });
+        if(!show)return;
+        summaryRows.push([d,'คาบ '+p.id,r,b.subject,b.teacher,grps.join(', ')]);
+      });
+    });
+  });
+  var summarySheet=XLSX.utils.aoa_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(wb,summarySheet,safeSheetName('รวมทั้งหมด',usedNames));
+
+  sel.forEach(function(s){
+    var rows=buildXlsxRows(pv,s);
+    var sheet=XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb,sheet,safeSheetName(s,usedNames));
+  });
+
+  var dn=document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH';
+  var fname='PTECH_'+(dn||'Timetable').replace(/[\s\/\:*?"<>|\[\]]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb,fname);
+  toast('✓ ส่งออก Excel แล้ว','ok');
 }
 
 </script>
