@@ -120,6 +120,7 @@ input,select,textarea{font-family:inherit}
 .tt td.rl{position:sticky;left:0;z-index:5;background:var(--paper);padding:0 8px;font-weight:700;font-size:13px;white-space:nowrap;text-align:center;vertical-align:middle;width:66px;min-width:66px;color:var(--ink2)}
 .tt td.lunch{background:repeating-linear-gradient(45deg,#fef3c7,#fef3c7 4px,#fffbeb 4px,#fffbeb 8px)}
 .tt td.fblock{background:repeating-linear-gradient(45deg,#f1f1ef,#f1f1ef 4px,var(--paper) 4px,var(--paper) 8px)}
+.tt th.brk,.tt td.brk{width:26px;min-width:26px;max-width:26px;background:var(--paper);writing-mode:vertical-rl;text-orientation:mixed;text-align:center;font-size:10px;color:var(--ink3);padding:4px 2px;white-space:normal}
 .tt td.drop-ok{background:var(--blue-bg)!important;outline:2px dashed var(--blue);outline-offset:-2px}
 .tt td.conflict{background:var(--red-bg)!important}
 
@@ -342,6 +343,9 @@ input,select,textarea{font-family:inherit}
     height:30mm!important;vertical-align:top}
   #print-container .tt td.lunch{background:#fffbeb!important}
   #print-container .tt td.fblock{background:#f5f5f5!important}
+  #print-container .tt th.brk,#print-container .tt td.brk{width:6mm!important;min-width:0!important;
+    writing-mode:vertical-rl!important;text-orientation:mixed!important;text-align:center!important;
+    font-size:6pt!important;background:#f5f5f5!important;padding:2pt 1pt!important}
   #print-container .ce{display:block!important;overflow:hidden;margin:1pt;
     border-radius:2pt;padding:2pt 3pt;font-size:7pt}
   #print-container .ce-sub{font-size:7.5pt!important;font-weight:700!important;display:block}
@@ -481,6 +485,15 @@ input,select,textarea{font-family:inherit}
         <div class="section-head">คาบพิเศษ (ชมรม/โฮมรูม ฯลฯ)</div>
         <div id="special-slots-list"></div>
         <button class="ibtn" style="width:100%;margin-top:6px" onclick="addSpecialSlotRow()">+ เพิ่มคาบพิเศษ</button>
+        <div class="section-head">เวลาแต่ละคาบ</div>
+        <div id="period-times-list"></div>
+        <div class="section-head">ช่วงพักระหว่างคาบ (พักเบรก/โฮมรูมเช้า)</div>
+        <div id="breaks-list"></div>
+        <button class="ibtn" style="width:100%;margin-top:6px" onclick="addBreakRow()">+ เพิ่มช่วงพัก</button>
+        <div class="fld" style="margin-top:10px">
+          <label>ชื่อผู้อำนวยการ (สำหรับลงชื่อท้ายเอกสารพิมพ์)</label>
+          <input type="text" id="director-name" placeholder="เช่น นายพัฒนะ ม่วงคร้าม">
+        </div>
         <button class="ibtn ibtn-pri" style="width:100%;margin-top:10px" onclick="saveTermSettings()">บันทึกการตั้งค่า</button>
       </div>
     </div>
@@ -633,7 +646,7 @@ var CL          = ["\u0e1b\u0e27\u0e0a1/1","\u0e1b\u0e27\u0e0a1/2","\u0e1b\u0e27
 var DY          = ["\u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c","\u0e2d\u0e31\u0e07\u0e04\u0e32\u0e23","\u0e1e\u0e38\u0e18","\u0e1e\u0e24\u0e2b\u0e31\u0e2a\u0e1a\u0e14\u0e35","\u0e28\u0e38\u0e01\u0e23\u0e4c"];
 var RM          = ["121","122","123","124","125","221","222","223","224","225","226","311","312","321A","321B","322","323A","323B","324","331","332","333","341","342","343","344","423","512","\u0e0a\u0e47\u0e2d\u0e1b\u0e01\u0e25\u0e36\u0e07","\u0e0a\u0e47\u0e2d\u0e1b\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07","\u0e0a\u0e47\u0e2d\u0e1b\u0e15\u0e34\u0e14\u0e15\u0e31\u0e49\u0e07\u0e41\u0e2d\u0e23\u0e4c","\u0e0a\u0e47\u0e2d\u0e1b\u0e1d\u0e36\u0e01\u0e1d\u0e35\u0e21\u0e37\u0e2d","\u0e42\u0e14\u0e21"];
 var TCH         = ["Pual W.","Self learning","\u0e01\u0e24\u0e29\u0e14\u0e32 \u0e21\u0e38\u0e14\u0e14\u0e35","\u0e01\u0e34\u0e15\u0e15\u0e34\u0e20\u0e39\u0e21\u0e34 \u0e1e\u0e34\u0e21\u0e1e\u0e4c\u0e2a\u0e38\u0e02","\u0e04\u0e13\u0e34\u0e15 \u0e21\u0e31\u0e48\u0e19\u0e04\u0e07","\u0e04\u0e23\u0e39\u0e04\u0e2d\u0e21 3","\u0e0a\u0e31\u0e22\u0e23\u0e31\u0e15\u0e19\u0e4c \u0e43\u0e08\u0e01\u0e27\u0e49\u0e32\u0e07 (\u0e1d\u0e36\u0e01\u0e2a\u0e2d\u0e19)","\u0e17\u0e34\u0e27\u0e32\u0e01\u0e23 \u0e1a\u0e38\u0e0d\u0e2b\u0e25\u0e49\u0e32","\u0e18\u0e19\u0e01\u0e24\u0e15 \u0e08\u0e31\u0e19\u0e17\u0e23\u0e4c\u0e42\u0e17 (\u0e1d\u0e36\u0e01\u0e2a\u0e2d\u0e19)","\u0e18\u0e19\u0e27\u0e31\u0e12\u0e19\u0e4c \u0e19\u0e23\u0e32\u0e28\u0e23\u0e35","\u0e18\u0e27\u0e31\u0e0a\u0e0a\u0e31\u0e22 \u0e1b\u0e23\u0e30\u0e40\u0e17\u0e28","\u0e18\u0e32\u0e19\u0e34\u0e19\u0e17\u0e23\u0e4c \u0e1b\u0e23\u0e30\u0e40\u0e2a\u0e23\u0e34\u0e10\u0e2a\u0e31\u0e07","\u0e18\u0e32\u0e23\u0e32\u0e23\u0e31\u0e15\u0e19\u0e4c \u0e0a\u0e31\u0e48\u0e07\u0e17\u0e2d\u0e07","\u0e18\u0e34\u0e14\u0e32\u0e1e\u0e23 \u0e28\u0e23\u0e35\u0e2d\u0e48\u0e2d\u0e19","\u0e19\u0e31\u0e10\u0e27\u0e14\u0e35 \u0e2b\u0e25\u0e33\u0e1e\u0e23\u0e21","\u0e1b\u0e19\u0e31\u0e14\u0e14\u0e32  \u0e17\u0e32\u0e23\u0e30\u0e15\u0e32","\u0e1b\u0e34\u0e22\u0e30\u0e13\u0e31\u0e10 \u0e0a\u0e33\u0e19\u0e32\u0e0d","\u0e1e\u0e07\u0e29\u0e4c\u0e1e\u0e34\u0e1e\u0e31\u0e12\u0e19\u0e4c \u0e1e\u0e19\u0e21\u0e40\u0e02\u0e15\u0e23\u0e4c","\u0e1e\u0e35\u0e23\u0e20\u0e31\u0e17\u0e23 \u0e23\u0e2d\u0e14\u0e0a\u0e21\u0e20\u0e39","\u0e28\u0e23\u0e32\u0e22\u0e38\u0e18 \u0e2a\u0e38\u0e19\u0e2a\u0e38\u0e23\u0e35","\u0e2a\u0e2b\u0e23\u0e31\u0e10 \u0e08\u0e27\u0e07\u0e40\u0e08\u0e34\u0e21","\u0e2a\u0e2b\u0e23\u0e31\u0e10 \u0e40\u0e2a\u0e19\u0e32\u0e23\u0e31\u0e15\u0e19\u0e4c","\u0e2a\u0e34\u0e23\u0e34\u0e01\u0e32\u0e19\u0e14\u0e32 \u0e13 \u0e01\u0e32\u0e2c\u0e2a\u0e34\u0e19\u0e18\u0e38\u0e4c","\u0e2a\u0e38\u0e17\u0e18\u0e34\u0e14\u0e32 \u0e2b\u0e27\u0e32\u0e19\u0e2d\u0e32\u0e23\u0e21\u0e13\u0e4c","\u0e2a\u0e38\u0e20\u0e31\u0e2a\u0e2a\u0e23 \u0e40\u0e21\u0e18\u0e35\u0e1b\u0e0f\u0e34\u0e20\u0e32\u0e13","\u0e2a\u0e38\u0e20\u0e32\u0e27\u0e14\u0e35 \u0e2b\u0e22\u0e2d\u0e07\u0e40\u0e2d\u0e48\u0e19","\u0e2a\u0e38\u0e23\u0e2a\u0e34\u0e17\u0e18\u0e34\u0e4c \u0e21\u0e30\u0e42\u0e19\u0e08\u0e34\u0e15\u0e23\u0e4c"];
-var PD = [{id:1,t:"08:15"},{id:2,t:"09:00"},{id:3,t:"09:55"},{id:4,t:"10:40"},{id:5,t:"11:25"},{id:6,t:"12:25"},{id:7,t:"13:10"},{id:8,t:"13:55"},{id:9,t:"14:40"}];
+var PD = [{id:1,t:"08:15",tEnd:"09:00"},{id:2,t:"09:00",tEnd:"09:45"},{id:3,t:"09:55",tEnd:"10:40"},{id:4,t:"10:40",tEnd:"11:25"},{id:5,t:"11:25",tEnd:"12:10"},{id:6,t:"12:25",tEnd:"13:10"},{id:7,t:"13:10",tEnd:"13:55"},{id:8,t:"13:55",tEnd:"14:40"},{id:9,t:"14:40",tEnd:"15:25"}];
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -660,6 +673,26 @@ function defaultLunchPeriods(cl){
 }
 function defaultSpecialSlots(){
   return [{d:'ศุกร์',p:7,label:'ชมรม'},{d:'ศุกร์',p:8,label:'ชมรม'},{d:'ศุกร์',p:9,label:'โฮมรูม'}];
+}
+var BREAKS = [];        // [{beforePeriod,label,t,tEnd}] — คอลัมน์พักที่จัดวิชาไม่ได้ (โฮมรูมเช้า/พักเบรก) ตั้งค่าโดย loadTermData()
+var DIRECTOR_NAME = ''; // ชื่อผู้อำนวยการสำหรับลงชื่อท้ายเอกสารพิมพ์
+var SCHOOL_NAME = 'วิทยาลัยเทคโนโลยีขอนแก่น P-Tech';
+var LOGO_DATA_URI = ''; // จะใส่ค่าเป็น data:image/...;base64,... เมื่อได้ไฟล์โลโก้มาฝัง
+function defaultPeriods(){
+  return [
+    {id:1,t:"08:15",tEnd:"09:00"},{id:2,t:"09:00",tEnd:"09:45"},
+    {id:3,t:"09:55",tEnd:"10:40"},{id:4,t:"10:40",tEnd:"11:25"},
+    {id:5,t:"11:25",tEnd:"12:10"},{id:6,t:"12:25",tEnd:"13:10"},
+    {id:7,t:"13:10",tEnd:"13:55"},{id:8,t:"13:55",tEnd:"14:40"},
+    {id:9,t:"14:40",tEnd:"15:25"}
+  ];
+}
+function defaultBreaks(){
+  return [
+    {beforePeriod:1,label:'โฮมรูมเช้า',t:'08:00',tEnd:'08:15'},
+    {beforePeriod:3,label:'พักเบรก 10 นาที',t:'09:45',tEnd:'09:55'},
+    {beforePeriod:6,label:'พักเบรก 15 นาที',t:'12:10',tEnd:'12:25'}
+  ];
 }
 
 // ═══════════════════════════════════════════════
@@ -905,12 +938,20 @@ function render(){
   confs.forEach(function(c){cdps[c.day+'|'+c.period]=1;});
 
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19\\\u0e04\u0e32\u0e1a</th>';
-  PD.forEach(function(p){h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'</span></th>';});
+  PD.forEach(function(p){
+    BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+    });
+    h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
+  });
   h+='</tr></thead><tbody>';
 
-  DY.forEach(function(d){
+  DY.forEach(function(d,di){
     h+='<tr><td class="rl">'+d+'</td>';
     PD.forEach(function(p){
+      BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+      });
       var fb=isFB(d,p.id), cdp=cdps[d+'|'+p.id];
 
       if(view==='room'){
@@ -1631,6 +1672,71 @@ function renderScheduleSettings(){
   document.getElementById('lunch-settings-list').innerHTML=lh;
   _editSpecialSlots=SPECIAL_SLOTS.map(function(s){return Object.assign({},s);});
   renderSpecialSlotsList();
+  renderPeriodTimesList();
+  _editBreaks=BREAKS.map(function(b){return Object.assign({},b);});
+  renderBreaksList();
+  var dn=document.getElementById('director-name');
+  if(dn)dn.value=DIRECTOR_NAME||'';
+}
+function renderPeriodTimesList(){
+  var el=document.getElementById('period-times-list'),h='';
+  PD.forEach(function(p){
+    h+='<div class="row2" style="grid-template-columns:56px 1fr 1fr;gap:4px;align-items:center;margin-bottom:5px">'
+      +'<div style="font-size:12px;font-weight:600">คาบ '+p.id+'</div>'
+      +'<input type="time" class="pt-start" data-id="'+p.id+'" value="'+esc(p.t)+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'<input type="time" class="pt-end" data-id="'+p.id+'" value="'+esc(p.tEnd||'')+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
+var _editBreaks=null;
+function renderBreaksList(){
+  var el=document.getElementById('breaks-list'),h='';
+  if(!_editBreaks.length){
+    h='<div style="text-align:center;color:var(--ink3);padding:8px 0;font-size:12px">ไม่มีช่วงพัก</div>';
+  }
+  _editBreaks.forEach(function(bk,i){
+    h+='<div class="row2" style="grid-template-columns:88px 1fr 74px 74px auto;gap:4px;align-items:center;margin-bottom:5px">'
+      +'<select class="bk-before" data-i="'+i+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
+      +PD.map(function(p){return '<option value="'+p.id+'"'+(bk.beforePeriod===p.id?' selected':'')+'>ก่อนคาบ '+p.id+'</option>';}).join('')
+      +'</select>'
+      +'<input type="text" class="bk-label" data-i="'+i+'" value="'+esc(bk.label)+'" placeholder="ป้ายกำกับ" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px;width:100%">'
+      +'<input type="time" class="bk-start" data-i="'+i+'" value="'+esc(bk.t)+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
+      +'<input type="time" class="bk-end" data-i="'+i+'" value="'+esc(bk.tEnd)+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeBreakRow('+i+')">×</button>'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
+function syncBreaksFromDOM(){
+  if(!_editBreaks)return;
+  document.querySelectorAll('.bk-before').forEach(function(sel){
+    var i=parseInt(sel.getAttribute('data-i'));
+    if(_editBreaks[i])_editBreaks[i].beforePeriod=parseInt(sel.value);
+  });
+  document.querySelectorAll('.bk-label').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i'));
+    if(_editBreaks[i])_editBreaks[i].label=inp.value;
+  });
+  document.querySelectorAll('.bk-start').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i'));
+    if(_editBreaks[i])_editBreaks[i].t=inp.value;
+  });
+  document.querySelectorAll('.bk-end').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i'));
+    if(_editBreaks[i])_editBreaks[i].tEnd=inp.value;
+  });
+}
+function addBreakRow(){
+  if(!_editBreaks)_editBreaks=BREAKS.map(function(b){return Object.assign({},b);});
+  syncBreaksFromDOM();
+  _editBreaks.push({beforePeriod:PD[0].id,label:'',t:'',tEnd:''});
+  renderBreaksList();
+}
+function removeBreakRow(i){
+  syncBreaksFromDOM();
+  _editBreaks.splice(i,1);
+  renderBreaksList();
 }
 function renderSpecialSlotsList(){
   var el=document.getElementById('special-slots-list'),h='';
@@ -1688,8 +1794,31 @@ function saveTermSettings(){
   LUNCH_PERIOD=newLunch;
   syncSpecialSlotsFromDOM();
   SPECIAL_SLOTS=(_editSpecialSlots||[]).filter(function(s){return s.label;});
+
+  var newPD=PD.map(function(p){return Object.assign({},p);});
+  document.querySelectorAll('.pt-start').forEach(function(inp){
+    var id=parseInt(inp.getAttribute('data-id'));
+    var p=newPD.find(function(x){return x.id===id;});
+    if(p&&inp.value)p.t=inp.value;
+  });
+  document.querySelectorAll('.pt-end').forEach(function(inp){
+    var id=parseInt(inp.getAttribute('data-id'));
+    var p=newPD.find(function(x){return x.id===id;});
+    if(p&&inp.value)p.tEnd=inp.value;
+  });
+  PD=newPD;
+
+  syncBreaksFromDOM();
+  BREAKS=(_editBreaks||[]).filter(function(b){return b.label&&b.t&&b.tEnd;});
+
+  var dnEl=document.getElementById('director-name');
+  DIRECTOR_NAME=dnEl?dnEl.value.trim():'';
+
   if(!_currentTermId){toast('ยังไม่ได้เชื่อมต่อเทอม — บันทึกไม่ได้ตอนนี้','err');return;}
-  supabase.from('terms').update({settings:{lunchPeriods:LUNCH_PERIOD,specialSlots:SPECIAL_SLOTS}}).eq('id',_currentTermId)
+  supabase.from('terms').update({settings:{
+    lunchPeriods:LUNCH_PERIOD,specialSlots:SPECIAL_SLOTS,
+    periods:PD,breaks:BREAKS,directorName:DIRECTOR_NAME,customized:true
+  }}).eq('id',_currentTermId)
     .then(function(res){
       if(res&&res.error){toast('บันทึกการตั้งค่าไม่สำเร็จ: '+res.error.message,'err');return;}
       toast('บันทึกการตั้งค่าคาบเรียนแล้ว','ok');
@@ -2457,8 +2586,19 @@ function loadTermData(t){
   TEACHERS_BASE = TCH.slice();
   ROOMS_BASE = Object.assign({},ROOM_CAP);
   var settings=t.settings||{};
-  LUNCH_PERIOD=(settings.lunchPeriods&&Object.keys(settings.lunchPeriods).length)?Object.assign({},settings.lunchPeriods):defaultLunchPeriods(CL);
-  SPECIAL_SLOTS=(settings.specialSlots&&settings.specialSlots.length)?settings.specialSlots.slice():defaultSpecialSlots();
+  if(settings.customized){
+    LUNCH_PERIOD=Object.assign({},settings.lunchPeriods||{});
+    SPECIAL_SLOTS=(settings.specialSlots||[]).slice();
+    PD=(settings.periods&&settings.periods.length)?settings.periods.slice():defaultPeriods();
+    BREAKS=(settings.breaks||[]).slice();
+    DIRECTOR_NAME=settings.directorName||'';
+  }else{
+    LUNCH_PERIOD=defaultLunchPeriods(CL);
+    SPECIAL_SLOTS=defaultSpecialSlots();
+    PD=defaultPeriods();
+    BREAKS=defaultBreaks();
+    DIRECTOR_NAME='';
+  }
   DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
   _currentTermId = t.id;
   try{localStorage.setItem('ptech_last_term',t.id);}catch(e){}
@@ -2626,23 +2766,39 @@ function pmCnt(){
   document.getElementById('PM-count').textContent=n+' \u0e2b\u0e19\u0e49\u0e32';
 }
 
+function buildLetterheadHtml(subtitle){
+  var dn=document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH';
+  var ds=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2px solid #333;padding-bottom:6pt;margin-bottom:8pt">'
+    +(LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:44pt;display:block;margin:0 auto 4pt">':'')
+    +'<div style="font-size:12pt;font-weight:700">'+esc(SCHOOL_NAME)+'</div>'
+    +'<div style="font-size:11pt;font-weight:700">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2a\u0e2d\u0e19 '+esc(dn)+'</div>'
+    +'<div style="font-size:9pt;color:#444">'+subtitle+'<br><small style="color:#888">'+ds+'</small></div>'
+    +'</div>';
+}
+function buildSignatureHtml(){
+  if(!DIRECTOR_NAME)return '';
+  return '<div style="text-align:center;margin-top:16pt;font-size:9pt">'
+    +'<div>\u0e25\u0e07\u0e0a\u0e37\u0e48\u0e2d.............................................</div>'
+    +'<div style="margin-top:4pt">( '+esc(DIRECTOR_NAME)+' )</div>'
+    +'<div>\u0e1c\u0e39\u0e49\u0e2d\u0e33\u0e19\u0e27\u0e22\u0e01\u0e32\u0e23</div>'
+    +'</div>';
+}
 function pmExec(){
   var pv=document.getElementById('PM-view').value;
   var sel=[];
   document.querySelectorAll('#PM-grid button').forEach(function(b){if(b._sel)sel.push(b._val||b.title);});
   if(!sel.length){alert('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1');return;}
   document.getElementById('PM').style.display='none';
-  var dn=document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH';
-  var ds=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
   var vl={'room':'\u0e2b\u0e49\u0e2d\u0e07/\u0e2d\u0e32\u0e04\u0e32\u0e23','teacher':'\u0e04\u0e23\u0e39','class':'\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19'}[pv]||'';
   var ctr=document.getElementById('print-container');
   ctr.innerHTML='';
   sel.forEach(function(s){
     var pg=document.createElement('div');pg.className='print-page';
-    pg.innerHTML='<div class="print-page-hdr" style="display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:4pt;margin-bottom:6pt">'
-      +'<b style="font-size:13pt">'+esc(dn)+'</b>'
-      +'<span style="font-size:9pt;color:#444;text-align:right">'+vl+': '+esc(s)+'<br><small style="color:#888">'+ds+'</small></span></div>';
+    pg.innerHTML=buildLetterheadHtml(vl+': '+esc(s));
     pg.appendChild(pmBuildTbl(pv,s));
+    var sig=document.createElement('div');sig.innerHTML=buildSignatureHtml();
+    pg.appendChild(sig);
     ctr.appendChild(pg);
   });
   ctr.style.display='block';
@@ -2652,11 +2808,19 @@ function pmExec(){
 
 function pmBuildTbl(pv,sel){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e04\u0e32\u0e1a</th>';
-  PD.forEach(function(p){h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'</span></th>';});
+  PD.forEach(function(p){
+    BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+    });
+    h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
+  });
   h+='</tr></thead><tbody>';
-  DY.forEach(function(d){
+  DY.forEach(function(d,di){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
+      BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+      });
       var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
       h+='<td class="'+(fb?'fblock':lch?'lunch':'')+'">';
@@ -2781,23 +2945,39 @@ function pmCnt(){
   document.getElementById('PM-count').textContent=n+' \u0e2b\u0e19\u0e49\u0e32';
 }
 
+function buildLetterheadHtml(subtitle){
+  var dn=document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH';
+  var ds=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2px solid #333;padding-bottom:6pt;margin-bottom:8pt">'
+    +(LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:44pt;display:block;margin:0 auto 4pt">':'')
+    +'<div style="font-size:12pt;font-weight:700">'+esc(SCHOOL_NAME)+'</div>'
+    +'<div style="font-size:11pt;font-weight:700">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e2a\u0e2d\u0e19 '+esc(dn)+'</div>'
+    +'<div style="font-size:9pt;color:#444">'+subtitle+'<br><small style="color:#888">'+ds+'</small></div>'
+    +'</div>';
+}
+function buildSignatureHtml(){
+  if(!DIRECTOR_NAME)return '';
+  return '<div style="text-align:center;margin-top:16pt;font-size:9pt">'
+    +'<div>\u0e25\u0e07\u0e0a\u0e37\u0e48\u0e2d.............................................</div>'
+    +'<div style="margin-top:4pt">( '+esc(DIRECTOR_NAME)+' )</div>'
+    +'<div>\u0e1c\u0e39\u0e49\u0e2d\u0e33\u0e19\u0e27\u0e22\u0e01\u0e32\u0e23</div>'
+    +'</div>';
+}
 function pmExec(){
   var pv=document.getElementById('PM-view').value;
   var sel=[];
   document.querySelectorAll('#PM-grid button').forEach(function(b){if(b._sel)sel.push(b._val||b.title);});
   if(!sel.length){alert('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1');return;}
   document.getElementById('PM').style.display='none';
-  var dn=document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH';
-  var ds=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
   var vl={'room':'\u0e2b\u0e49\u0e2d\u0e07/\u0e2d\u0e32\u0e04\u0e32\u0e23','teacher':'\u0e04\u0e23\u0e39','class':'\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19'}[pv]||'';
   var ctr=document.getElementById('print-container');
   ctr.innerHTML='';
   sel.forEach(function(s){
     var pg=document.createElement('div');pg.className='print-page';
-    pg.innerHTML='<div class="print-page-hdr" style="display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:4pt;margin-bottom:6pt">'
-      +'<b style="font-size:13pt">'+esc(dn)+'</b>'
-      +'<span style="font-size:9pt;color:#444;text-align:right">'+vl+': '+esc(s)+'<br><small style="color:#888">'+ds+'</small></span></div>';
+    pg.innerHTML=buildLetterheadHtml(vl+': '+esc(s));
     pg.appendChild(pmBuildTbl(pv,s));
+    var sig=document.createElement('div');sig.innerHTML=buildSignatureHtml();
+    pg.appendChild(sig);
     ctr.appendChild(pg);
   });
   ctr.style.display='block';
@@ -2807,11 +2987,19 @@ function pmExec(){
 
 function pmBuildTbl(pv,sel){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e04\u0e32\u0e1a</th>';
-  PD.forEach(function(p){h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'</span></th>';});
+  PD.forEach(function(p){
+    BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+    });
+    h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
+  });
   h+='</tr></thead><tbody>';
-  DY.forEach(function(d){
+  DY.forEach(function(d,di){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
+      BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+      });
       var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
       h+='<td class="'+(fb?'fblock':lch?'lunch':'')+'">';
@@ -2861,14 +3049,31 @@ function safeSheetName(raw,usedNames){
 }
 
 // เหมือน pmBuildTbl แต่คืนค่าเป็น array ของข้อความล้วน (ไม่ใช่ DOM) สำหรับ SheetJS
+// ลำดับคอลัมน์ของตาราง (คาบพิเศษ + คาบเรียน สลับกันตามตำแหน่งจริง) — ใช้ร่วมกันระหว่าง
+// buildXlsxRows (เนื้อหา) กับ pmExecXLSX (การ merge เซลล์คอลัมน์คาบพิเศษ) เพื่อไม่ให้ตำแหน่งเพี้ยน
+function buildColumnLayout(){
+  var cols=[];
+  PD.forEach(function(p){
+    BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
+      cols.push({type:'break',bk:bk});
+    });
+    cols.push({type:'period',p:p});
+  });
+  return cols;
+}
 function buildXlsxRows(pv,sel){
+  var cols=buildColumnLayout();
   var rows=[];
   var header=['วัน/คาบ'];
-  PD.forEach(function(p){header.push('คาบ '+p.id+' ('+p.t+')');});
+  cols.forEach(function(c){
+    header.push(c.type==='break'?(c.bk.label+' ('+c.bk.t+'-'+c.bk.tEnd+')'):('คาบ '+c.p.id+' ('+c.p.t+'-'+(c.p.tEnd||'')+')'));
+  });
   rows.push(header);
-  DY.forEach(function(d){
+  DY.forEach(function(d,di){
     var row=[d];
-    PD.forEach(function(p){
+    cols.forEach(function(c){
+      if(c.type==='break'){row.push(di===0?c.bk.label:'');return;}
+      var p=c.p;
       var fb=isFB(d,p.id);
       if(fb){row.push(fb);return;}
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
@@ -2894,7 +3099,7 @@ function buildXlsxRows(pv,sel){
     });
     rows.push(row);
   });
-  return rows;
+  return {rows:rows,cols:cols};
 }
 
 function pmExecXLSX(){
@@ -2928,8 +3133,16 @@ function pmExecXLSX(){
   XLSX.utils.book_append_sheet(wb,summarySheet,safeSheetName('รวมทั้งหมด',usedNames));
 
   sel.forEach(function(s){
-    var rows=buildXlsxRows(pv,s);
-    var sheet=XLSX.utils.aoa_to_sheet(rows);
+    var built=buildXlsxRows(pv,s);
+    var sheet=XLSX.utils.aoa_to_sheet(built.rows);
+    var merges=[];
+    built.cols.forEach(function(c,ci){
+      if(c.type==='break'){
+        var col=ci+1; // +1 เพราะคอลัมน์ 0 คือคอลัมน์ชื่อวัน
+        merges.push({s:{r:1,c:col},e:{r:DY.length,c:col}});
+      }
+    });
+    if(merges.length)sheet['!merges']=merges;
     XLSX.utils.book_append_sheet(wb,sheet,safeSheetName(s,usedNames));
   });
 
