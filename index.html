@@ -428,6 +428,7 @@ input,select,textarea{font-family:inherit}
         <button class="ibtn" id="at-tch" style="flex:1;font-size:10.5px;padding:7px 3px" onclick="setAddTab('tch')">ครู</button>
         <button class="ibtn" id="at-room" style="flex:1;font-size:10.5px;padding:7px 3px" onclick="setAddTab('room')">ห้อง</button>
         <button class="ibtn" id="at-class" style="flex:1;font-size:10.5px;padding:7px 3px" onclick="setAddTab('class')">ชั้นเรียน</button>
+        <button class="ibtn" id="at-settings" style="flex:1;font-size:10.5px;padding:7px 3px" onclick="setAddTab('settings')" title="ตั้งค่าคาบเรียน">⚙</button>
       </div>
       <!-- add subject -->
       <div id="add-subj">
@@ -472,6 +473,15 @@ input,select,textarea{font-family:inherit}
         <button class="ibtn ibtn-pri" style="width:100%;margin-top:4px" onclick="addClassGroup()">+ เพิ่มชั้นเรียน</button>
         <div class="section-head">ชั้นเรียนทั้งหมด</div>
         <div id="class-mgr-list"></div>
+      </div>
+      <!-- schedule settings: lunch periods + special slots -->
+      <div id="add-settings-pane" style="display:none">
+        <div class="section-head">คาบพักเที่ยงตามระดับชั้น</div>
+        <div id="lunch-settings-list"></div>
+        <div class="section-head">คาบพิเศษ (ชมรม/โฮมรูม ฯลฯ)</div>
+        <div id="special-slots-list"></div>
+        <button class="ibtn" style="width:100%;margin-top:6px" onclick="addSpecialSlotRow()">+ เพิ่มคาบพิเศษ</button>
+        <button class="ibtn ibtn-pri" style="width:100%;margin-top:10px" onclick="saveTermSettings()">บันทึกการตั้งค่า</button>
       </div>
     </div>
   </div>
@@ -641,6 +651,16 @@ var _currentDraftId = 'draft_default';
 var _currentTermId = null;   // เทอมที่กำลังใช้งานอยู่ — ตั้งค่าโดย loadTermData()
 var TEACHERS_BASE = TCH.slice();        // รายชื่อครูตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
 var ROOMS_BASE = Object.assign({},ROOM_CAP); // ห้องตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
+var LUNCH_PERIOD = {};  // {className: periodNumber} — คาบพักเที่ยงของแต่ละชั้นเรียน ตั้งค่าโดย loadTermData()
+var SPECIAL_SLOTS = []; // [{d,p,label}] — คาบพิเศษที่จัดวิชาไม่ได้ เช่น ชมรม/โฮมรูม ตั้งค่าโดย loadTermData()
+function defaultLunchPeriods(cl){
+  var m={};
+  (cl||[]).forEach(function(c){ m[c]=c.indexOf('ปวช1')===0?5:6; });
+  return m;
+}
+function defaultSpecialSlots(){
+  return [{d:'ศุกร์',p:7,label:'ชมรม'},{d:'ศุกร์',p:8,label:'ชมรม'},{d:'ศุกร์',p:9,label:'โฮมรูม'}];
+}
 
 // ═══════════════════════════════════════════════
 // SUPABASE (multi-user backend)
@@ -666,23 +686,23 @@ function initTT(){
 // ═══════════════════════════════════════════════
 function esc(s){return s?String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"):"";}
 function isL(cg,p){
-  // ปวช1 = คาบ 5, ปวช2 = คาบ 6, ปวส4 = คาบ 6
-  if(cg.startsWith('\u0e1b\u0e27\u0e0a1'))return p===5;
-  return p===6;
+  return LUNCH_PERIOD[cg]===p;
 }
 function getLunchPeriod(groups){
-  // ปวช1 = คาบ 5 | ปวช2, ปวส4 = คาบ 6
-  // ถ้ามีหลายกลุ่มแต่คาบพักต่างกัน = -1 (ไม่บล็อก)
+  // ถ้ามีหลายกลุ่มแต่คาบพักต่างกัน (หรือยังไม่ตั้งค่า) = -1 (ไม่บล็อก)
   var lps={};
   (groups||[]).forEach(function(g){
-    var lp=g.startsWith('\u0e1b\u0e27\u0e0a1')?5:6;
-    lps[lp]=true;
+    var lp=LUNCH_PERIOD[g];
+    if(lp)lps[lp]=true;
   });
   var keys=Object.keys(lps);
   if(keys.length===1)return parseInt(keys[0]);
-  return -1; // กลุ่มมีคาบพักต่างกัน ไม่บล็อก
+  return -1;
 }
-function isFB(d,p){ return d==='\u0e28\u0e38\u0e01\u0e23\u0e4c'&&p>=7; }
+function isFB(d,p){
+  var f=SPECIAL_SLOTS.find(function(s){return s.d===d&&s.p===p;});
+  return f?f.label:null;
+}
 function gE(room,d,p){ return (tt[room]&&tt[room][d]&&tt[room][d][p])||null; }
 function sE(room,d,p,v){
   if(!tt[room])tt[room]={};
@@ -900,7 +920,7 @@ function render(){
         h+='<td class="'+cls+'"';
         if(drp)h+=' ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)" ondrop="oDrop(event,\''+room+'\',\''+d+'\','+p.id+')" onclick="cCell(\''+room+'\',\''+d+'\','+p.id+')"';
         h+='>';
-        if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">\u0e0a\u0e21\u0e23\u0e21</span>';
+        if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{var e=gE(room,d,p.id);if(e){var b=gB(e.blockId);if(b)h+=renderCE(b,e,room,d,p.id,true);}}
         h+='</td>';
 
@@ -913,7 +933,7 @@ function render(){
           +" onclick=\"cCellClass('"+cg+"','"+d+"',"+p.id+")\"";
         h+='>';
         if(lch)h+='<span style="font-size:9px;color:var(--amber);padding:2px 4px;display:block">\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07</span>';
-        else if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">\u0e0a\u0e21\u0e23\u0e21</span>';
+        else if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{
           // Show all entries that include this class group
           RM.forEach(function(r){
@@ -930,7 +950,7 @@ function render(){
           +" ondrop=\"oDropTeacher(event,'"+tch+"','"+d+"',"+p.id+")\""
           +" onclick=\"cCellTeacher('"+tch+"','"+d+"',"+p.id+")\"";
         h+='>';
-        if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">\u0e0a\u0e21\u0e23\u0e21</span>';
+        if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{
           RM.forEach(function(r){
             var e=gE(r,d,p.id);
@@ -990,7 +1010,7 @@ function oDrop(e,room,d,p){
   // ── ตรวจ 1: คาบพักเที่ยง — บล็อกเด็ดขาด ──
   var lp=getLunchPeriod(groups);
   if(lp===p){
-    var who=lp===5?'\u0e1b\u0e27\u0e0a':'\u0e1b\u0e27\u0e2a';
+    var who=groups.filter(function(g){return LUNCH_PERIOD[g]===lp;}).join(', ');
     showConflict(
       '\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07',
       '\u2022 <b>\u0e04\u0e32\u0e1a '+p+'</b> \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07\u0e02\u0e2d\u0e07 <b>'+who+'</b><br>'+
@@ -1071,7 +1091,7 @@ function oDropClass(e,cg,d,p){
   var groups=b.groups||[b.classGroup];
   // บล็อกคาบพักเที่ยงเด็ดขาด
   var lp=getLunchPeriod(groups);
-  if(lp===p){var who=lp===5?'\u0e1b\u0e27\u0e0a':'\u0e1b\u0e27\u0e2a';showConflict('\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07','\u2022 \u0e04\u0e32\u0e1a '+p+' \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07 <b>'+who+'</b><br>\u2022 \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e25\u0e07\u0e27\u0e34\u0e0a\u0e32\u0e43\u0e19\u0e04\u0e32\u0e1a\u0e19\u0e35\u0e49',null);return;}
+  if(lp===p){var who=groups.filter(function(g){return LUNCH_PERIOD[g]===lp;}).join(', ');showConflict('\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07','\u2022 \u0e04\u0e32\u0e1a '+p+' \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07 <b>'+who+'</b><br>\u2022 \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e25\u0e07\u0e27\u0e34\u0e0a\u0e32\u0e43\u0e19\u0e04\u0e32\u0e1a\u0e19\u0e35\u0e49',null);return;}
   // ตรวจว่า block นี้ตรงกับชั้นนี้ไหม
   if(groups.indexOf(cg)<0){
     showConflict(
@@ -1119,7 +1139,7 @@ function oDropTeacher(e,tch,d,p){
   var groups=b.groups||[b.classGroup];
   // บล็อกคาบพักเที่ยงเด็ดขาด
   var lp=getLunchPeriod(groups);
-  if(lp===p){var who=lp===5?'\u0e1b\u0e27\u0e0a':'\u0e1b\u0e27\u0e2a';showConflict('\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07','\u2022 \u0e04\u0e32\u0e1a '+p+' \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07 <b>'+who+'</b><br>\u2022 \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e25\u0e07\u0e27\u0e34\u0e0a\u0e32\u0e43\u0e19\u0e04\u0e32\u0e1a\u0e19\u0e35\u0e49',null);return;}
+  if(lp===p){var who=groups.filter(function(g){return LUNCH_PERIOD[g]===lp;}).join(', ');showConflict('\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07','\u2022 \u0e04\u0e32\u0e1a '+p+' \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07 <b>'+who+'</b><br>\u2022 \u0e44\u0e21\u0e48\u0e2a\u0e32\u0e21\u0e32\u0e23\u0e16\u0e25\u0e07\u0e27\u0e34\u0e0a\u0e32\u0e43\u0e19\u0e04\u0e32\u0e1a\u0e19\u0e35\u0e49',null);return;}
   if(b.teacher!==tch){
     showConflict(
       '\u0e04\u0e23\u0e39\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07',
@@ -1328,7 +1348,7 @@ function pickSubj(bid){
   var groups=b.groups||[b.classGroup];
   var lp=getLunchPeriod(groups);
   if(lp===pickCtx.p){
-    var who=lp===5?'\u0e1b\u0e27\u0e0a':'\u0e1b\u0e27\u0e2a';
+    var who=groups.filter(function(g){return LUNCH_PERIOD[g]===lp;}).join(', ');
     if(!confirm('\u26a0 \u0e04\u0e32\u0e1a '+pickCtx.p+' \u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07 '+who+' \u0e22\u0e37\u0e19\u0e22\u0e31\u0e19?'))return;
   }
   sE(pickCtx.room,pickCtx.d,pickCtx.p,{blockId:bid,groups:groups});
@@ -1460,13 +1480,14 @@ function closeEditModal(){document.getElementById('edit-modal').classList.remove
 // ═══════════════════════════════════════════════
 function setAddTab(t){
   _addTab=t;
-  ['subj','tch','room','class'].forEach(function(x){
+  ['subj','tch','room','class','settings'].forEach(function(x){
     document.getElementById('at-'+x).className='ibtn'+(t===x?' ibtn-pri':'');
-    document.getElementById('add-'+(x==='room'?'room-pane':x==='tch'?'tch-pane':x==='class'?'class-pane':'subj')).style.display=t===x?'block':'none';
+    document.getElementById('add-'+(x==='room'?'room-pane':x==='tch'?'tch-pane':x==='class'?'class-pane':x==='settings'?'settings-pane':'subj')).style.display=t===x?'block':'none';
   });
   if(t==='tch')renderTchList();
   if(t==='room')renderRoomMgr();
   if(t==='class')renderClassMgr();
+  if(t==='settings')renderScheduleSettings();
 }
 function popAddForms(){
   var h='<option value="">\u2014 \u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38 \u2014</option>';
@@ -1583,6 +1604,97 @@ function renderClassMgr(){
       +'</div>';
   });
   el.innerHTML=h;
+}
+
+// คาบพักเที่ยง/คาบพิเศษ (ชมรม/โฮมรูม ฯลฯ) เป็นข้อมูลระดับเทอมเหมือนชั้นเรียน — บันทึกทันทีไม่รอ autosave draft
+var _editSpecialSlots=null; // สำเนาชั่วคราวขณะแก้ไข ก่อนกด "บันทึกการตั้งค่า"
+function renderScheduleSettings(){
+  var prefixes=[];
+  CL.forEach(function(c){
+    var pre=c.split('/')[0];
+    if(prefixes.indexOf(pre)<0)prefixes.push(pre);
+  });
+  var lh='';
+  if(!prefixes.length){
+    lh='<div style="text-align:center;color:var(--ink3);padding:12px 0;font-size:12px">ยังไม่มีชั้นเรียน</div>';
+  }
+  prefixes.forEach(function(pre){
+    var classesInPre=CL.filter(function(c){return c.split('/')[0]===pre;});
+    var cur=LUNCH_PERIOD[classesInPre[0]]||'';
+    lh+='<div class="row2" style="align-items:center;margin-bottom:6px">'
+      +'<div style="font-size:12px;font-weight:600">'+esc(pre)+'</div>'
+      +'<select class="lunch-pre-sel" data-pre="'+esc(pre)+'" style="padding:6px 8px;border:1.5px solid var(--line);border-radius:var(--r);font-size:12px">'
+      +'<option value="">— ไม่มีคาบพัก —</option>'
+      +PD.map(function(p){return '<option value="'+p.id+'"'+(cur===p.id?' selected':'')+'>คาบ '+p.id+'</option>';}).join('')
+      +'</select></div>';
+  });
+  document.getElementById('lunch-settings-list').innerHTML=lh;
+  _editSpecialSlots=SPECIAL_SLOTS.map(function(s){return Object.assign({},s);});
+  renderSpecialSlotsList();
+}
+function renderSpecialSlotsList(){
+  var el=document.getElementById('special-slots-list'),h='';
+  if(!_editSpecialSlots.length){
+    h='<div style="text-align:center;color:var(--ink3);padding:8px 0;font-size:12px">ไม่มีคาบพิเศษ</div>';
+  }
+  _editSpecialSlots.forEach(function(s,i){
+    h+='<div class="row2" style="grid-template-columns:1fr 1fr 1fr auto;gap:4px;align-items:center;margin-bottom:5px">'
+      +'<select class="ss-day" data-i="'+i+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +DY.map(function(d){return '<option value="'+esc(d)+'"'+(s.d===d?' selected':'')+'>'+esc(d)+'</option>';}).join('')
+      +'</select>'
+      +'<select class="ss-period" data-i="'+i+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +PD.map(function(p){return '<option value="'+p.id+'"'+(s.p===p.id?' selected':'')+'>คาบ '+p.id+'</option>';}).join('')
+      +'</select>'
+      +'<input type="text" class="ss-label" data-i="'+i+'" value="'+esc(s.label)+'" placeholder="ป้ายกำกับ" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px;width:100%">'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeSpecialSlotRow('+i+')">×</button>'
+      +'</div>';
+  });
+  el.innerHTML=h;
+}
+function syncSpecialSlotsFromDOM(){
+  if(!_editSpecialSlots)return;
+  document.querySelectorAll('.ss-day').forEach(function(sel){
+    var i=parseInt(sel.getAttribute('data-i'));
+    if(_editSpecialSlots[i])_editSpecialSlots[i].d=sel.value;
+  });
+  document.querySelectorAll('.ss-period').forEach(function(sel){
+    var i=parseInt(sel.getAttribute('data-i'));
+    if(_editSpecialSlots[i])_editSpecialSlots[i].p=parseInt(sel.value);
+  });
+  document.querySelectorAll('.ss-label').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i'));
+    if(_editSpecialSlots[i])_editSpecialSlots[i].label=inp.value;
+  });
+}
+function addSpecialSlotRow(){
+  if(!_editSpecialSlots)_editSpecialSlots=SPECIAL_SLOTS.map(function(s){return Object.assign({},s);});
+  syncSpecialSlotsFromDOM();
+  _editSpecialSlots.push({d:DY[0],p:PD[0].id,label:''});
+  renderSpecialSlotsList();
+}
+function removeSpecialSlotRow(i){
+  syncSpecialSlotsFromDOM();
+  _editSpecialSlots.splice(i,1);
+  renderSpecialSlotsList();
+}
+function saveTermSettings(){
+  var newLunch={};
+  document.querySelectorAll('.lunch-pre-sel').forEach(function(sel){
+    var pre=sel.getAttribute('data-pre');
+    var val=parseInt(sel.value);
+    if(!val)return;
+    CL.forEach(function(c){ if(c.split('/')[0]===pre)newLunch[c]=val; });
+  });
+  LUNCH_PERIOD=newLunch;
+  syncSpecialSlotsFromDOM();
+  SPECIAL_SLOTS=(_editSpecialSlots||[]).filter(function(s){return s.label;});
+  if(!_currentTermId){toast('ยังไม่ได้เชื่อมต่อเทอม — บันทึกไม่ได้ตอนนี้','err');return;}
+  supabase.from('terms').update({settings:{lunchPeriods:LUNCH_PERIOD,specialSlots:SPECIAL_SLOTS}}).eq('id',_currentTermId)
+    .then(function(res){
+      if(res&&res.error){toast('บันทึกการตั้งค่าไม่สำเร็จ: '+res.error.message,'err');return;}
+      toast('บันทึกการตั้งค่าคาบเรียนแล้ว','ok');
+    });
+  render();
 }
 
 // ═══════════════════════════════════════════════
@@ -2090,6 +2202,7 @@ async function createTerm(mode){
     students: mode==='duplicate'?STUDENTS:{},
     teachers: mode==='duplicate'?TCH:[],
     rooms: mode==='duplicate'?ROOM_CAP:{},
+    settings: mode==='duplicate'?{lunchPeriods:Object.assign({},LUNCH_PERIOD),specialSlots:SPECIAL_SLOTS.slice()}:{},
     updated_by: currentUserEmail
   };
   try{
@@ -2128,7 +2241,7 @@ function importTermFile(input){
       var payload={
         id:id, name:t.name+' (นำเข้า)',
         blocks_data:t.blocks_data||[], classes:t.classes||[], students:t.students||{},
-        teachers:t.teachers||[], rooms:t.rooms||{}, updated_by:currentUserEmail
+        teachers:t.teachers||[], rooms:t.rooms||{}, settings:t.settings||{}, updated_by:currentUserEmail
       };
       var res=await supabase.from('terms').insert(payload);
       if(res.error) throw res.error;
@@ -2343,6 +2456,9 @@ function loadTermData(t){
   RM = Object.keys(ROOM_CAP).sort();
   TEACHERS_BASE = TCH.slice();
   ROOMS_BASE = Object.assign({},ROOM_CAP);
+  var settings=t.settings||{};
+  LUNCH_PERIOD=(settings.lunchPeriods&&Object.keys(settings.lunchPeriods).length)?Object.assign({},settings.lunchPeriods):defaultLunchPeriods(CL);
+  SPECIAL_SLOTS=(settings.specialSlots&&settings.specialSlots.length)?settings.specialSlots.slice():defaultSpecialSlots();
   DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
   _currentTermId = t.id;
   try{localStorage.setItem('ptech_last_term',t.id);}catch(e){}
@@ -2541,9 +2657,11 @@ function pmBuildTbl(pv,sel){
   DY.forEach(function(d){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
+      var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
-      h+='<td class="'+(lch?'lunch':'')+'">';
-      if(lch){h+='<span style="font-size:7pt;color:#92400e;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07</span>';}
+      h+='<td class="'+(fb?'fblock':lch?'lunch':'')+'">';
+      if(fb){h+='<span style="font-size:7pt;color:#555;padding:2pt;display:block">'+esc(fb)+'</span>';}
+      else if(lch){h+='<span style="font-size:7pt;color:#92400e;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07</span>';}
       else{
         RM.forEach(function(r){
           var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
@@ -2694,9 +2812,11 @@ function pmBuildTbl(pv,sel){
   DY.forEach(function(d){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
+      var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
-      h+='<td class="'+(lch?'lunch':'')+'">';
-      if(lch){h+='<span style="font-size:7pt;color:#92400e;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07</span>';}
+      h+='<td class="'+(fb?'fblock':lch?'lunch':'')+'">';
+      if(fb){h+='<span style="font-size:7pt;color:#555;padding:2pt;display:block">'+esc(fb)+'</span>';}
+      else if(lch){h+='<span style="font-size:7pt;color:#92400e;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07</span>';}
       else{
         RM.forEach(function(r){
           var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
@@ -2749,6 +2869,8 @@ function buildXlsxRows(pv,sel){
   DY.forEach(function(d){
     var row=[d];
     PD.forEach(function(p){
+      var fb=isFB(d,p.id);
+      if(fb){row.push(fb);return;}
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
       if(lch){row.push('พักเที่ยง');return;}
       var parts=[];
