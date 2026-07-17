@@ -120,7 +120,8 @@ input,select,textarea{font-family:inherit}
 .tt td.rl{position:sticky;left:0;z-index:5;background:var(--paper);padding:0 8px;font-weight:700;font-size:13px;white-space:nowrap;text-align:center;vertical-align:middle;width:66px;min-width:66px;color:var(--ink2)}
 .tt td.lunch{background:repeating-linear-gradient(45deg,#fef3c7,#fef3c7 4px,#fffbeb 4px,#fffbeb 8px)}
 .tt td.fblock{background:repeating-linear-gradient(45deg,#f1f1ef,#f1f1ef 4px,var(--paper) 4px,var(--paper) 8px)}
-.tt th.brk,.tt td.brk{width:26px;min-width:26px;max-width:26px;background:var(--paper);writing-mode:vertical-rl;text-orientation:mixed;text-align:center;font-size:10px;color:var(--ink3);padding:4px 2px;white-space:normal}
+.tt th.brk,.tt td.brk{width:26px;min-width:26px;max-width:26px;background:var(--paper);padding:0;position:relative;overflow:hidden}
+.brk-inner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;font-size:10px;color:var(--ink3);text-align:center}
 .tt td.drop-ok{background:var(--blue-bg)!important;outline:2px dashed var(--blue);outline-offset:-2px}
 .tt td.conflict{background:var(--red-bg)!important}
 
@@ -344,8 +345,10 @@ input,select,textarea{font-family:inherit}
   #print-container .tt td.lunch{background:#fffbeb!important}
   #print-container .tt td.fblock{background:#f5f5f5!important}
   #print-container .tt th.brk,#print-container .tt td.brk{width:6mm!important;min-width:0!important;
-    writing-mode:vertical-rl!important;text-orientation:mixed!important;text-align:center!important;
-    font-size:6pt!important;background:#f5f5f5!important;padding:2pt 1pt!important}
+    background:#f5f5f5!important;padding:0!important;position:relative!important;overflow:hidden!important}
+  #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
+    transform:translate(-50%,-50%) rotate(-90deg)!important;white-space:nowrap!important;
+    font-size:6pt!important;text-align:center!important}
   #print-container .ce{display:block!important;overflow:hidden;margin:1pt;
     border-radius:2pt;padding:2pt 3pt;font-size:7pt}
   #print-container .ce-sub{font-size:7.5pt!important;font-weight:700!important;display:block}
@@ -940,7 +943,7 @@ function render(){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19\\\u0e04\u0e32\u0e1a</th>';
   PD.forEach(function(p){
     BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+      h+='<th class="brk"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
     });
     h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
   });
@@ -950,7 +953,7 @@ function render(){
     h+='<tr><td class="rl">'+d+'</td>';
     PD.forEach(function(p){
       BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></td>';
       });
       var fb=isFB(d,p.id), cdp=cdps[d+'|'+p.id];
 
@@ -2810,7 +2813,7 @@ function pmBuildTbl(pv,sel){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e04\u0e32\u0e1a</th>';
   PD.forEach(function(p){
     BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+      h+='<th class="brk"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
     });
     h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
   });
@@ -2819,7 +2822,7 @@ function pmBuildTbl(pv,sel){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
       BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></td>';
       });
       var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
@@ -2989,7 +2992,7 @@ function pmBuildTbl(pv,sel){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e04\u0e32\u0e1a</th>';
   PD.forEach(function(p){
     BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></th>';
+      h+='<th class="brk"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
     });
     h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
   });
@@ -2998,7 +3001,7 @@ function pmBuildTbl(pv,sel){
     h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
       BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'">'+esc(bk.label)+'<span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></td>';
+        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></td>';
       });
       var fb=isFB(d,p.id);
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
