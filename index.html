@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PTECH Timetable</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -401,16 +401,19 @@ input,select,textarea{font-family:inherit}
   header,aside,.modal-bg,.toast,.conflict-box,#print-modal,
   .gw,.workspace{display:none!important}
   #print-container{display:block!important}
+  #print-container *{font-family:'Sarabun',sans-serif!important}
   .print-page{page-break-after:always;display:block}
   .print-page:last-child{page-break-after:avoid}
   .print-page-hdr{border-bottom:2px solid #333;padding-bottom:4pt;margin-bottom:6pt}
   #print-container .tt{width:100%!important;font-size:7.5pt!important;
-    table-layout:fixed!important;border-collapse:collapse!important}
+    table-layout:fixed!important;border-collapse:collapse!important;
+    border:1.8pt solid #222!important;outline:1.8pt solid #222!important;outline-offset:-1.8pt!important}
   #print-container .tt th{font-size:8pt!important;padding:4pt 2pt!important;
-    background:#e8e8e8!important;border:1px solid #999!important;text-align:center}
+    background:#e8e8e8!important;border:1.2pt solid #333!important;text-align:center}
   #print-container .tt th.rh,#print-container .tt td.rl{width:22mm!important;font-weight:700}
-  #print-container .tt td{border:1px solid #aaa!important;padding:2pt!important;
-    height:30mm!important;vertical-align:top}
+  #print-container .tt td{border:1.2pt solid #333!important;padding:2pt!important;
+    height:24mm!important;vertical-align:top}
+  #print-container .tt tr.day-row>td,#print-container .tt tr.day-row>th{border-top:2.5pt solid #000!important}
   #print-container .tt td.lunch{background:#f97316!important;vertical-align:middle!important;text-align:center!important}
   #print-container .tt td.fblock{background:#f5f5f5!important}
   #print-container .tt th.brk,#print-container .tt td.brk{width:6mm!important;min-width:0!important;
@@ -670,6 +673,27 @@ input,select,textarea{font-family:inherit}
     <input class="srch" type="text" id="pick-srch" placeholder="ค้นหา..." oninput="filterPickList(this.value)" style="border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;width:100%">
     <div id="pick-list" style="overflow-y:auto;max-height:300px;display:flex;flex-direction:column;gap:3px;margin-top:4px"></div>
     <div class="modal-foot"><button class="ibtn" onclick="closePickModal()">ยกเลิก</button></div>
+  </div>
+</div>
+
+<!-- QUICK EDIT MODAL (แก้เวลาคาบ/ช่วงพักจากการคลิกหัวตาราง) -->
+<div class="overlay" id="quick-edit-modal">
+  <div class="modal modal-sm">
+    <h2 id="qe-title">แก้ไขเวลา</h2>
+    <div class="modal-body">
+      <div class="fld" id="qe-label-fld" style="display:none">
+        <label>ป้ายกำกับ</label>
+        <input type="text" id="qe-label" placeholder="เช่น โฮมรูมเช้า">
+      </div>
+      <div class="row2">
+        <div class="fld"><label>เวลาเริ่ม</label><input type="time" id="qe-start"></div>
+        <div class="fld"><label>เวลาจบ</label><input type="time" id="qe-end"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="ibtn" onclick="closeQuickEditModal()">ยกเลิก</button>
+      <button class="ibtn ibtn-pri" onclick="saveQuickEdit()">บันทึก</button>
+    </div>
   </div>
 </div>
 
@@ -1061,7 +1085,7 @@ function render(){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e40\u0e27\u0e25\u0e32</th>';
   PD.forEach(function(p){
     BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk" style="cursor:pointer" title="\u0e04\u0e25\u0e34\u0e01\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e41\u0e01\u0e49\u0e44\u0e02" onclick="editBreakInline('+bk.beforePeriod+')"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
+      h+='<th class="brk" style="cursor:pointer" title="'+esc(bk.label)+' '+esc(bk.t)+'-'+esc(bk.tEnd)+' (\u0e04\u0e25\u0e34\u0e01\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e41\u0e01\u0e49\u0e44\u0e02)" onclick="editBreakInline('+bk.beforePeriod+')">\u0e1e\u0e31\u0e01</th>';
     });
     h+='<th class="ph" style="cursor:pointer" title="\u0e04\u0e25\u0e34\u0e01\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e41\u0e01\u0e49\u0e44\u0e02" onclick="editPeriodTimeInline('+p.id+')">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
   });
@@ -1747,27 +1771,51 @@ function saveScheduleSettingsQuick(){
     });
 }
 // คลิกที่หัวตารางคาบ/ช่วงพักในตารางแก้สด แก้เวลาได้ทันทีโดยไม่ต้องไปที่แท็บ ⚙
+var _quickEditCtx=null;
 function editPeriodTimeInline(id){
   var p=PD.find(function(x){return x.id===id;});
   if(!p)return;
-  var start=prompt('เวลาเริ่มคาบ '+id+' (HH:MM)',p.t||'');
-  if(start===null||!start.trim())return;
-  var end=prompt('เวลาจบคาบ '+id+' (HH:MM)',p.tEnd||'');
-  if(end===null||!end.trim())return;
-  p.t=start.trim();p.tEnd=end.trim();
-  saveScheduleSettingsQuick();render();
+  _quickEditCtx={mode:'period',id:id};
+  document.getElementById('qe-title').textContent='แก้ไขเวลาคาบ '+id;
+  document.getElementById('qe-label-fld').style.display='none';
+  document.getElementById('qe-start').value=p.t||'';
+  document.getElementById('qe-end').value=p.tEnd||'';
+  document.getElementById('quick-edit-modal').classList.add('open');
 }
 function editBreakInline(beforePeriod){
   var bk=BREAKS.find(function(b){return b.beforePeriod===beforePeriod;});
   if(!bk)return;
-  var label=prompt('ป้ายกำกับช่วงพัก',bk.label||'');
-  if(label===null||!label.trim())return;
-  var start=prompt('เวลาเริ่ม (HH:MM)',bk.t||'');
-  if(start===null||!start.trim())return;
-  var end=prompt('เวลาจบ (HH:MM)',bk.tEnd||'');
-  if(end===null||!end.trim())return;
-  bk.label=label.trim();bk.t=start.trim();bk.tEnd=end.trim();
-  saveScheduleSettingsQuick();render();
+  _quickEditCtx={mode:'break',beforePeriod:beforePeriod};
+  document.getElementById('qe-title').textContent='แก้ไขช่วงพัก';
+  document.getElementById('qe-label-fld').style.display='block';
+  document.getElementById('qe-label').value=bk.label||'';
+  document.getElementById('qe-start').value=bk.t||'';
+  document.getElementById('qe-end').value=bk.tEnd||'';
+  document.getElementById('quick-edit-modal').classList.add('open');
+}
+function closeQuickEditModal(){
+  document.getElementById('quick-edit-modal').classList.remove('open');
+  _quickEditCtx=null;
+}
+function saveQuickEdit(){
+  if(!_quickEditCtx)return;
+  var start=document.getElementById('qe-start').value;
+  var end=document.getElementById('qe-end').value;
+  if(!start||!end){toast('กรุณาระบุเวลาให้ครบ','err');return;}
+  if(_quickEditCtx.mode==='period'){
+    var p=PD.find(function(x){return x.id===_quickEditCtx.id;});
+    if(p){p.t=start;p.tEnd=end;}
+  }else{
+    var bk=BREAKS.find(function(b){return b.beforePeriod===_quickEditCtx.beforePeriod;});
+    if(bk){
+      var label=document.getElementById('qe-label').value.trim();
+      if(!label){toast('กรุณาระบุป้ายกำกับ','err');return;}
+      bk.label=label;bk.t=start;bk.tEnd=end;
+    }
+  }
+  closeQuickEditModal();
+  saveScheduleSettingsQuick();
+  render();
 }
 function saveTermRoster(){
   if(!_currentTermId)return;
@@ -1876,14 +1924,19 @@ function renderBreaksList(){
     h='<div style="text-align:center;color:var(--ink3);padding:8px 0;font-size:12px">ไม่มีช่วงพัก</div>';
   }
   _editBreaks.forEach(function(bk,i){
-    h+='<div class="row2" style="grid-template-columns:88px 1fr 74px 74px auto;gap:4px;align-items:center;margin-bottom:5px">'
-      +'<select class="bk-before" data-i="'+i+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
+    h+='<div class="bcard" style="cursor:default;flex-direction:column;align-items:stretch;padding:8px;gap:5px;margin-bottom:6px">'
+      +'<div style="display:flex;gap:5px">'
+      +'<select class="bk-before" data-i="'+i+'" style="flex:1;min-width:0;padding:6px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
       +PD.map(function(p){return '<option value="'+p.id+'"'+(bk.beforePeriod===p.id?' selected':'')+'>ก่อนคาบ '+p.id+'</option>';}).join('')
       +'</select>'
-      +'<input type="text" class="bk-label" data-i="'+i+'" value="'+esc(bk.label)+'" placeholder="ป้ายกำกับ" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px;width:100%">'
-      +'<input type="time" class="bk-start" data-i="'+i+'" value="'+esc(bk.t)+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
-      +'<input type="time" class="bk-end" data-i="'+i+'" value="'+esc(bk.tEnd)+'" style="padding:5px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:10px">'
-      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeBreakRow('+i+')">×</button>'
+      +'<input type="text" class="bk-label" data-i="'+i+'" value="'+esc(bk.label)+'" placeholder="ป้ายกำกับ" style="flex:1;min-width:0;padding:6px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'</div>'
+      +'<div style="display:flex;gap:5px;align-items:center">'
+      +'<input type="time" class="bk-start" data-i="'+i+'" value="'+esc(bk.t)+'" style="flex:1;min-width:0;padding:6px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'<span style="color:var(--ink3);flex-shrink:0">–</span>'
+      +'<input type="time" class="bk-end" data-i="'+i+'" value="'+esc(bk.tEnd)+'" style="flex:1;min-width:0;padding:6px 4px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red);flex-shrink:0" onclick="removeBreakRow('+i+')" title="ลบช่วงพักนี้">×</button>'
+      +'</div>'
       +'</div>';
   });
   el.innerHTML=h;
@@ -1915,6 +1968,8 @@ function addBreakRow(){
 }
 function removeBreakRow(i){
   syncBreaksFromDOM();
+  var bk=_editBreaks[i];
+  if(!confirm('ลบช่วงพัก "'+(bk&&bk.label?bk.label:'นี้')+'"?'))return;
   _editBreaks.splice(i,1);
   renderBreaksList();
 }
@@ -1960,6 +2015,8 @@ function addSpecialSlotRow(){
 }
 function removeSpecialSlotRow(i){
   syncSpecialSlotsFromDOM();
+  var s=_editSpecialSlots[i];
+  if(!confirm('ลบคาบพิเศษ "'+(s&&s.label?s.label:'นี้')+'"?'))return;
   _editSpecialSlots.splice(i,1);
   renderSpecialSlotsList();
 }
@@ -2712,7 +2769,7 @@ document.addEventListener('keydown',function(e){
 // ═══════════════════════════════════════════════
 // CLOSE OVERLAYS ON BG CLICK
 // ═══════════════════════════════════════════════
-['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal'].forEach(function(id){
+['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
@@ -2964,11 +3021,16 @@ function buildLetterheadHtml(pv,item){
   var dept=pv==='class'?(CLASS_DEPT[item]||''):'';
   var advisor=pv==='class'?(CLASS_ADVISOR[item]||''):'';
   var subtitle=esc(tpl).split('{item}').join(esc(item)).split('{dept}').join(esc(dept)).split('{advisor}').join(esc(advisor));
-  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2px solid #333;padding-bottom:6pt;margin-bottom:8pt">'
-    +(LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:44pt;display:block;margin:0 auto 4pt">':'')
-    +'<div style="font-size:12pt;font-weight:700">'+esc(SCHOOL_NAME)+'</div>'
-    +'<div style="font-size:11pt;font-weight:700">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e20\u0e32\u0e04\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48 '+esc(termLabel)+'</div>'
-    +'<div style="font-size:9pt;color:#444">'+subtitle+'</div>'
+  var logoBlock=LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:50pt;width:50pt;object-fit:contain;flex-shrink:0">':'';
+  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2.5px solid #222;padding-bottom:8pt;margin-bottom:10pt">'
+    +'<div style="display:inline-flex;align-items:center;gap:10pt;text-align:left">'
+    +logoBlock
+    +'<div style="text-align:center">'
+    +'<div style="font-size:13pt;font-weight:700;line-height:1.6">'+esc(SCHOOL_NAME)+'</div>'
+    +'<div style="font-size:11.5pt;font-weight:700;margin-top:5pt;line-height:1.6">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e20\u0e32\u0e04\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48 '+esc(termLabel)+'</div>'
+    +'<div style="font-size:9.5pt;color:#333;margin-top:5pt;line-height:1.6">'+subtitle+'</div>'
+    +'</div>'
+    +'</div>'
     +'</div>';
 }
 function buildSignatureHtml(){
@@ -3011,7 +3073,7 @@ function pmBuildTbl(pv,sel){
   });
   h+='</tr></thead><tbody>';
   DY.forEach(function(d,di){
-    h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
+    h+='<tr class="day-row"><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
       BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
         if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' \u0e40\u0e27\u0e25\u0e32 '+fmtT(bk.t)+' - '+fmtT(bk.tEnd)+' \u0e19.</div></td>';
@@ -3146,11 +3208,16 @@ function buildLetterheadHtml(pv,item){
   var dept=pv==='class'?(CLASS_DEPT[item]||''):'';
   var advisor=pv==='class'?(CLASS_ADVISOR[item]||''):'';
   var subtitle=esc(tpl).split('{item}').join(esc(item)).split('{dept}').join(esc(dept)).split('{advisor}').join(esc(advisor));
-  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2px solid #333;padding-bottom:6pt;margin-bottom:8pt">'
-    +(LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:44pt;display:block;margin:0 auto 4pt">':'')
-    +'<div style="font-size:12pt;font-weight:700">'+esc(SCHOOL_NAME)+'</div>'
-    +'<div style="font-size:11pt;font-weight:700">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e20\u0e32\u0e04\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48 '+esc(termLabel)+'</div>'
-    +'<div style="font-size:9pt;color:#444">'+subtitle+'</div>'
+  var logoBlock=LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:50pt;width:50pt;object-fit:contain;flex-shrink:0">':'';
+  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2.5px solid #222;padding-bottom:8pt;margin-bottom:10pt">'
+    +'<div style="display:inline-flex;align-items:center;gap:10pt;text-align:left">'
+    +logoBlock
+    +'<div style="text-align:center">'
+    +'<div style="font-size:13pt;font-weight:700;line-height:1.6">'+esc(SCHOOL_NAME)+'</div>'
+    +'<div style="font-size:11.5pt;font-weight:700;margin-top:5pt;line-height:1.6">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e20\u0e32\u0e04\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48 '+esc(termLabel)+'</div>'
+    +'<div style="font-size:9.5pt;color:#333;margin-top:5pt;line-height:1.6">'+subtitle+'</div>'
+    +'</div>'
+    +'</div>'
     +'</div>';
 }
 function buildSignatureHtml(){
@@ -3193,7 +3260,7 @@ function pmBuildTbl(pv,sel){
   });
   h+='</tr></thead><tbody>';
   DY.forEach(function(d,di){
-    h+='<tr><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
+    h+='<tr class="day-row"><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
     PD.forEach(function(p){
       BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
         if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' \u0e40\u0e27\u0e25\u0e32 '+fmtT(bk.t)+' - '+fmtT(bk.tEnd)+' \u0e19.</div></td>';
