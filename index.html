@@ -182,6 +182,7 @@ input,select,textarea{font-family:inherit}
 .grid-wrap{flex:1;overflow:auto;padding:14px 16px}
 .tt{border-collapse:collapse;font-size:12px;width:max-content}
 .tt th{background:var(--paper);border:1px solid var(--line);padding:8px 10px;font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:10;color:var(--ink2);font-size:12px}
+.tt th.ph:hover,.tt th.brk:hover{background:var(--blue-bg);color:var(--blue)}
 .tt th.rh{position:sticky;left:0;z-index:20;min-width:66px;text-align:center}
 .tt th.ph{min-width:120px;text-align:center}
 .ptime{font-size:10px;font-weight:400;color:var(--ink3);display:block;margin-top:1px}
@@ -1060,9 +1061,9 @@ function render(){
   var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e40\u0e27\u0e25\u0e32</th>';
   PD.forEach(function(p){
     BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
+      h+='<th class="brk" style="cursor:pointer" title="\u0e04\u0e25\u0e34\u0e01\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e41\u0e01\u0e49\u0e44\u0e02" onclick="editBreakInline('+bk.beforePeriod+')"><div class="brk-inner">'+esc(bk.label)+' <span class="ptime">'+esc(bk.t)+'-'+esc(bk.tEnd)+'</span></div></th>';
     });
-    h+='<th class="ph">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
+    h+='<th class="ph" style="cursor:pointer" title="\u0e04\u0e25\u0e34\u0e01\u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e41\u0e01\u0e49\u0e44\u0e02" onclick="editPeriodTimeInline('+p.id+')">\u0e04\u0e32\u0e1a '+p.id+'<span class="ptime">'+p.t+'-'+esc(p.tEnd||'')+'</span></th>';
   });
   h+='</tr></thead><tbody>';
 
@@ -1736,6 +1737,37 @@ function buildSettingsPayload(){
     printSubtitleTpl:PRINT_SUBTITLE_TPL, classDept:CLASS_DEPT, classAdvisor:CLASS_ADVISOR,
     customized:true
   };
+}
+function saveScheduleSettingsQuick(){
+  if(!_currentTermId){toast('ยังไม่ได้เชื่อมต่อเทอม — บันทึกไม่ได้ตอนนี้','err');return;}
+  supabase.from('terms').update({settings:buildSettingsPayload()}).eq('id',_currentTermId)
+    .then(function(res){
+      if(res&&res.error){toast('บันทึกไม่สำเร็จ: '+res.error.message,'err');return;}
+      toast('บันทึกแล้ว','ok');
+    });
+}
+// คลิกที่หัวตารางคาบ/ช่วงพักในตารางแก้สด แก้เวลาได้ทันทีโดยไม่ต้องไปที่แท็บ ⚙
+function editPeriodTimeInline(id){
+  var p=PD.find(function(x){return x.id===id;});
+  if(!p)return;
+  var start=prompt('เวลาเริ่มคาบ '+id+' (HH:MM)',p.t||'');
+  if(start===null||!start.trim())return;
+  var end=prompt('เวลาจบคาบ '+id+' (HH:MM)',p.tEnd||'');
+  if(end===null||!end.trim())return;
+  p.t=start.trim();p.tEnd=end.trim();
+  saveScheduleSettingsQuick();render();
+}
+function editBreakInline(beforePeriod){
+  var bk=BREAKS.find(function(b){return b.beforePeriod===beforePeriod;});
+  if(!bk)return;
+  var label=prompt('ป้ายกำกับช่วงพัก',bk.label||'');
+  if(label===null||!label.trim())return;
+  var start=prompt('เวลาเริ่ม (HH:MM)',bk.t||'');
+  if(start===null||!start.trim())return;
+  var end=prompt('เวลาจบ (HH:MM)',bk.tEnd||'');
+  if(end===null||!end.trim())return;
+  bk.label=label.trim();bk.t=start.trim();bk.tEnd=end.trim();
+  saveScheduleSettingsQuick();render();
 }
 function saveTermRoster(){
   if(!_currentTermId)return;
