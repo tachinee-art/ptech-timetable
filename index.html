@@ -267,11 +267,12 @@ input,select,textarea{font-family:inherit}
 ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 
 /* ─── PRINT / PDF ─── */
+@font-face{font-family:'TH Sarabun New';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK')}
 @media print{
   @page{size:A4 landscape;margin:10mm 8mm 8mm 8mm}
 
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box}
-  html,body{width:297mm;height:210mm;overflow:visible!important;margin:0;padding:0;font-family:'Sarabun',sans-serif}
+  html,body{width:297mm;height:210mm;overflow:visible!important;margin:0;padding:0;font-family:'TH Sarabun New','Sarabun',sans-serif}
 
   /* ซ่อนทุกอย่างยกเว้น workspace */
   .sidebar,.topbar,.ws-toolbar,.statusbar,
@@ -401,7 +402,7 @@ input,select,textarea{font-family:inherit}
   header,aside,.modal-bg,.toast,.conflict-box,#print-modal,
   .gw,.workspace{display:none!important}
   #print-container{display:block!important}
-  #print-container *{font-family:'Sarabun',sans-serif!important}
+  #print-container *{font-family:'TH Sarabun New','Sarabun',sans-serif!important}
   .print-page{page-break-after:always;display:block}
   .print-page:last-child{page-break-after:avoid}
   .print-page-hdr{border-bottom:2px solid #333;padding-bottom:4pt;margin-bottom:6pt}
