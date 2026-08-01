@@ -204,7 +204,7 @@ input,select,textarea{font-family:inherit}
 .bcard:hover .bcard-edit{display:flex}
 
 /* ─── WORKSPACE TOOLBAR ─── */
-.ws-toolbar{padding:10px 16px;background:#fff;border-bottom:2px solid var(--line);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.ws-toolbar{padding:10px 16px;background:#fff;border-bottom:2px solid var(--line);display:flex;align-items:center;gap:10px;flex-shrink:0;overflow-x:auto;overflow-y:hidden}
 .ws-label{font-size:12px;font-weight:700;color:var(--ink3);white-space:nowrap;letter-spacing:.04em;text-transform:uppercase}
 .ws-sel{padding:7px 11px;border:1.5px solid var(--line);border-radius:var(--r);font-size:14px;font-weight:600;background:var(--paper);color:var(--ink);outline:none;cursor:pointer;min-width:140px}
 .ws-sel:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
@@ -219,7 +219,7 @@ input,select,textarea{font-family:inherit}
 .ibtn-pri:hover{background:#1648c7;border-color:#1648c7;color:#fff}
 
 /* ─── GRID ─── */
-.grid-wrap{flex:1;overflow:auto;padding:14px 16px}
+.grid-wrap{flex:1;overflow:auto;padding:14px 28px 14px 16px}
 .tt{border-collapse:collapse;font-size:12px;width:max-content}
 .tt th{background:var(--paper);border:1px solid var(--line);padding:8px 10px;font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:10;color:var(--ink2);font-size:12px}
 .tt th.ph:hover,.tt th.brk:hover{background:var(--blue-bg);color:var(--blue)}
@@ -303,8 +303,12 @@ input,select,textarea{font-family:inherit}
 .conflict-box h4{font-size:13px;font-weight:700;color:var(--red);margin-bottom:6px}
 .conflict-reason{font-size:12px;color:var(--ink2);margin-bottom:10px;line-height:1.7}
 .conflict-actions{display:flex;gap:8px;justify-content:flex-end}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+*{scrollbar-color:var(--ink3) var(--paper)}
+::-webkit-scrollbar{width:14px;height:14px}
+::-webkit-scrollbar-track{background:var(--paper)}
+::-webkit-scrollbar-thumb{background:var(--ink3);border-radius:8px;border:3px solid var(--paper)}
+::-webkit-scrollbar-thumb:hover{background:var(--ink2)}
+::-webkit-scrollbar-corner{background:var(--paper)}
 
 /* ─── PRINT / PDF ─── */
 @font-face{font-family:'TH Sarabun New';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK')}
