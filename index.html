@@ -828,7 +828,7 @@ input,select,textarea{font-family:inherit}
         <label>สร้างเทอมใหม่</label>
         <input type="text" id="new-term-name" placeholder="ชื่อเทอม เช่น ภาคเรียนที่ 2/2568">
         <div style="display:flex;gap:6px;margin-top:6px">
-          <button class="ibtn" style="flex:1" onclick="createTerm('blank')">+ เทอมว่าง</button>
+          <button class="ibtn" style="flex:1" onclick="createTerm('blank')" title="รายวิชา ชั้นเรียน และตารางเริ่มใหม่หมด แต่คงรายชื่อครู/ห้องจากเทอมปัจจุบัน">+ เทอมว่าง</button>
           <button class="ibtn" style="flex:1" onclick="createTerm('duplicate')">+ คัดลอกจากเทอมปัจจุบัน</button>
         </div>
       </div>
@@ -2660,7 +2660,7 @@ async function switchTerm(id){
       document.getElementById('draft-name').value='ตารางใหม่';
       blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
       setDirty(false);
-      render();
+      popAddForms();popViewSel();render();
     }
     subscribeToDraft(_currentDraftId);
     closeTermsMgr();
@@ -2708,8 +2708,9 @@ async function createTerm(mode){
     blocks_data: mode==='duplicate'?BLOCKS_DATA:[],
     classes: mode==='duplicate'?CL:[],
     students: mode==='duplicate'?STUDENTS:{},
-    teachers: mode==='duplicate'?TCH:[],
-    rooms: mode==='duplicate'?ROOM_CAP:{},
+    // ครู/ห้อง เป็นทรัพยากรที่ใช้ร่วมกันข้ามเทอม — ดึงมาจากเทอมปัจจุบันเสมอ แม้จะสร้างเทอมว่าง
+    teachers: TCH,
+    rooms: ROOM_CAP,
     settings: mode==='duplicate'?{lunchPeriods:Object.assign({},LUNCH_PERIOD),specialSlots:SPECIAL_SLOTS.slice()}:{},
     updated_by: currentUserEmail
   };
