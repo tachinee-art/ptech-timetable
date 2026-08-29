@@ -1,0 +1,28 @@
+name: Keep Supabase Alive
+
+# กัน Supabase Free Plan ถูก pause อัตโนมัติเมื่อไม่มีการใช้งานเกิน 7 วัน
+# โดยยิง request เบา ๆ เข้าฐานข้อมูลวันละครั้ง ให้ถูกนับเป็น activity
+on:
+  schedule:
+    - cron: '0 6 * * *'    # ทุกวัน 06:00 UTC (≈ 13:00 เวลาไทย)
+  workflow_dispatch:         # กดรันเองจากแท็บ Actions ได้ด้วย
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST endpoint
+        run: |
+          CODE=$(curl -sS -m 20 -o /dev/null -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/drafts?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}")
+          echo "Supabase responded with HTTP $CODE"
+          # ถือว่า "ตื่นอยู่" ถ้าได้รหัส 2xx หรือ 4xx (เซิร์ฟเวอร์ตอบ แต่ RLS อาจปฏิเสธ)
+          # ถือว่า "ผิดปกติ" ถ้าได้ 000 (ต่อไม่ติด/timeout) หรือ 5xx (เซิร์ฟเวอร์หลับ/ล่ม)
+          if [ "$CODE" = "000" ] || [ "$CODE" -ge 500 ]; then
+            echo "::error::Supabase ไม่ตอบสนองตามปกติ (HTTP $CODE)"
+            exit 1
+          fi
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

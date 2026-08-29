@@ -968,6 +968,18 @@ document.addEventListener('DOMContentLoaded',restoreNavRailState);
 // HELPERS
 // ═══════════════════════════════════════════════
 function esc(s){return s?String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"):"";}
+// escAttr: ปลอดภัยเมื่อฝังค่าเป็น JS string ภายใน onclick="...('ตรงนี้')"
+// ต้อง escape backslash และ ' แบบ JS ก่อน แล้วค่อยกัน " < > & แบบ HTML-attribute
+// (esc() เดิมใช้ไม่ได้กับกรณีนี้ เพราะ &#39; จะถูก HTML ถอดกลับเป็น ' แล้วทำ JS พัง)
+function escAttr(s){
+  return String(s==null?'':s)
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
 function isL(cg,p){
   return LUNCH_PERIOD[cg]===p;
 }
@@ -1024,6 +1036,22 @@ function cntSched(bid){
   return n;
 }
 function isFull(b){ return cntSched(b.id)>=b.periodsPerWeek; }
+// นับคาบที่จัดไว้แล้ว — ใช้เตือนก่อนลบครู/ห้อง/ชั้นเรียนที่ยังมีการใช้งาน
+function countTeacherPeriods(name){
+  var n=0;
+  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(!e)return; var b=gB(e.blockId); if(b&&b.teacher===name)n++; }); }); });
+  return n;
+}
+function countRoomPeriods(room){
+  var n=0;
+  if(tt[room])DY.forEach(function(d){ PD.forEach(function(p){ if(tt[room][d]&&tt[room][d][p.id])n++; }); });
+  return n;
+}
+function countClassPeriods(cg){
+  var n=0;
+  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(e&&(e.groups||[]).indexOf(cg)>=0)n++; }); }); });
+  return n;
+}
 
 // ═══════════════════════════════════════════════
 // CONFLICT DETECTION
@@ -1674,7 +1702,7 @@ function renderRoomList(q,ns){
     var fc=pct>100?'var(--red)':pct>85?'var(--amber)':'var(--green)';
     var cc=pct>100?'ro-over':pct>85?'ro-warn':'ro-ok';
     var isSel=selRoom===r;
-    h+='<div class="ropt'+(isSel?' sel':'')+'" onclick="selRm(\''+esc(r)+'\')">'
+    h+='<div class="ropt'+(isSel?' sel':'')+'" onclick="selRm(\''+escAttr(r)+'\')">'
       +'<div><div class="ropt-name">'+esc(r)+'</div>'
       +'<div class="ropt-cap" style="color:'+fc+'">'+(ns?ns+'/'+cap+'\u0e04\u0e19 ('+Math.min(999,pct)+'%)':cap+'\u0e04\u0e19')+(pct>100?' ⚠':'')+'</div></div>'
       +'<div class="ropt-bar"><div class="ropt-fill" style="width:'+Math.min(100,pct)+'%;background:'+fc+'"></div></div>'
@@ -1701,7 +1729,7 @@ function buildGrpGrid(elId, selected){
   var el=document.getElementById(elId), h='';
   CL.forEach(function(cg){
     var isSel=(selected||[]).indexOf(cg)>=0;
-    h+='<button class="grp-btn'+(isSel?' sel':'')+'" onclick="toggleGrp(this,\''+elId+'\',\''+esc(cg)+'\')">'+esc(cg.replace('\u0e1b\u0e27\u0e0a','').replace('\u0e1b\u0e27\u0e252','4/'))+'</button>';
+    h+='<button class="grp-btn'+(isSel?' sel':'')+'" onclick="toggleGrp(this,\''+elId+'\',\''+escAttr(cg)+'\')">'+esc(cg.replace('\u0e1b\u0e27\u0e0a','').replace('\u0e1b\u0e27\u0e252','4/'))+'</button>';
   });
   el.innerHTML=h;
 }
@@ -1809,7 +1837,9 @@ function addTeacher(){
   popAddForms();renderTchList();toast('\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e04\u0e23\u0e39\u0e41\u0e25\u0e49\u0e27');
 }
 function removeTeacher(name){
-  if(!confirm('\u0e25\u0e1a '+name+'?'))return;
+  var used=countTeacherPeriods(name);
+  var warn=used>0?'\n\n\u26a0 \u0e04\u0e23\u0e39\u0e04\u0e19\u0e19\u0e35\u0e49\u0e22\u0e31\u0e07\u0e21\u0e35 '+used+' \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\n\u0e04\u0e32\u0e1a\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e08\u0e30\u0e22\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e15\u0e48\u0e08\u0e30\u0e2b\u0e32\u0e22\u0e08\u0e32\u0e01\u0e21\u0e38\u0e21\u0e21\u0e2d\u0e07\u0e04\u0e23\u0e39 (\u0e01\u0e25\u0e32\u0e22\u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e01\u0e33\u0e1e\u0e23\u0e49\u0e32)':'';
+  if(!confirm('\u0e25\u0e1a '+name+'?'+warn))return;
   TCH=TCH.filter(function(t){return t!==name;});
   popAddForms();renderTchList();
 }
@@ -1818,7 +1848,7 @@ function renderTchList(){
   TCH.forEach(function(t){
     h+='<div class="bcard" style="cursor:default;display:flex;align-items:center;justify-content:space-between;padding:6px 8px">'
       +'<span style="font-size:11px;font-weight:500">'+esc(t)+'</span>'
-      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeTeacher(\''+esc(t)+'\')">×</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeTeacher(\''+escAttr(t)+'\')">×</button>'
       +'</div>';
   });
   el.innerHTML=h||'<div style="text-align:center;color:var(--ink3);padding:12px 0;font-size:12px">\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e0a\u0e37\u0e48\u0e2d</div>';
@@ -1841,7 +1871,9 @@ function editRoomCap(name){
   ROOM_CAP[name]=n;renderRoomMgr();render();
 }
 function removeRoom(name){
-  if(!confirm('\u0e25\u0e1a\u0e2b\u0e49\u0e2d\u0e07 '+name+'?'))return;
+  var used=countRoomPeriods(name);
+  var warn=used>0?'\n\n\u26a0 \u0e2b\u0e49\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e22\u0e31\u0e07\u0e21\u0e35 '+used+' \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\n\u0e04\u0e32\u0e1a\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e08\u0e30\u0e16\u0e39\u0e01\u0e0b\u0e48\u0e2d\u0e19\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e17\u0e38\u0e01\u0e21\u0e38\u0e21\u0e21\u0e2d\u0e07 (\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e22\u0e31\u0e07\u0e04\u0e49\u0e32\u0e07\u0e2d\u0e22\u0e39\u0e48)':'';
+  if(!confirm('\u0e25\u0e1a\u0e2b\u0e49\u0e2d\u0e07 '+name+'?'+warn))return;
   delete ROOM_CAP[name];RM=RM.filter(function(r){return r!==name;});
   popAddForms();popViewSel();renderRoomMgr();render();
 }
@@ -1850,8 +1882,8 @@ function renderRoomMgr(){
   Object.keys(ROOM_CAP).sort().forEach(function(r){
     h+='<div class="bcard" style="cursor:default;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;padding:6px 8px">'
       +'<div><div style="font-size:11px;font-weight:500">'+esc(r)+'</div><div style="font-size:10px;color:var(--ink3)">'+ROOM_CAP[r]+'\u0e04\u0e19</div></div>'
-      +'<button class="bcard-edit" style="display:flex;position:static" onclick="editRoomCap(\''+esc(r)+'\')">&#9998;</button>'
-      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeRoom(\''+esc(r)+'\')">×</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static" onclick="editRoomCap(\''+escAttr(r)+'\')">&#9998;</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeRoom(\''+escAttr(r)+'\')">×</button>'
       +'</div>';
   });
   el.innerHTML=h;
@@ -1956,7 +1988,9 @@ function editClassStudents(name){
   saveTermRoster();renderClassMgr();render();
 }
 function removeClassGroup(name){
-  if(!confirm('ลบชั้นเรียน '+name+'?'))return;
+  var used=countClassPeriods(name);
+  var warn=used>0?'\n\n⚠ ชั้นเรียนนี้ยังมี '+used+' คาบที่จัดไว้ในตาราง\nคาบเหล่านั้นจะยังอยู่แต่จะหายจากมุมมองชั้นเรียน':'';
+  if(!confirm('ลบชั้นเรียน '+name+'?'+warn))return;
   CL=CL.filter(function(c){return c!==name;});
   delete STUDENTS[name];
   delete CLASS_DEPT[name];
@@ -1970,8 +2004,8 @@ function renderClassMgr(){
     var meta=(STUDENTS[c]||0)+' คน'+(CLASS_DEPT[c]?' · '+esc(CLASS_DEPT[c]):'')+(CLASS_ADVISOR[c]?' · ที่ปรึกษา '+esc(CLASS_ADVISOR[c]):'');
     h+='<div class="bcard" style="cursor:default;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;padding:6px 8px">'
       +'<div><div style="font-size:11px;font-weight:500">'+esc(c)+'</div><div style="font-size:10px;color:var(--ink3)">'+meta+'</div></div>'
-      +'<button class="bcard-edit" style="display:flex;position:static" onclick="editClassStudents(\''+esc(c)+'\')">&#9998;</button>'
-      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeClassGroup(\''+esc(c)+'\')">×</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static" onclick="editClassStudents(\''+escAttr(c)+'\')">&#9998;</button>'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeClassGroup(\''+escAttr(c)+'\')">×</button>'
       +'</div>';
   });
   el.innerHTML=h;
@@ -2490,6 +2524,7 @@ async function saveDraft(){
     var res=await supabase.from('drafts').upsert({id:_currentDraftId,term_id:_currentTermId,name:name,data:data,ts:data.ts,updated_by:currentUserEmail});
     if(res.error) throw res.error;
     setDirty(false);
+    hideServerDownBanner(); // เซฟขึ้นคลาวด์ได้ = เซิร์ฟเวอร์กลับมาแล้ว
     // Update timestamp in UI
     var now=new Date();
     var ts=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
@@ -2502,6 +2537,7 @@ async function saveDraft(){
   }catch(err){
     dot.className='sync-dot offline';
     lbl.textContent='ออฟไลน์ — บันทึกในเครื่องเท่านั้น';
+    showServerDownBanner(); // เซฟขึ้นคลาวด์ไม่ได้ = เซิร์ฟเวอร์อาจหลับ
     toast('บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (จะลองใหม่อัตโนมัติ): '+err.message,'warn');
   }
 }
@@ -2936,7 +2972,10 @@ window.addEventListener('beforeunload',function(){
     try{
       var name=document.getElementById('draft-name').value.trim()||'Draft';
       var data=collectDraftData();
-      var drafts=getDraftList();
+      // อ่านรายการ draft จาก localStorage (ห้ามเรียก getDraftList() ที่เป็น async ในนี้ — จะ throw)
+      var drafts=[];
+      try{drafts=JSON.parse(localStorage.getItem('ptech_drafts')||'[]');}catch(eList){drafts=[];}
+      if(!Array.isArray(drafts))drafts=[];
       var found=drafts.find(function(d){return d.id===_currentDraftId;});
       if(found){found.name=name;found.ts=data.ts;}
       else{drafts.push({id:_currentDraftId,name:name,ts:data.ts});}
@@ -3040,10 +3079,50 @@ async function resolveActiveTerm(){
   return found||terms[0];
 }
 
+// ═══════════════════════════════════════════════
+// SERVER HEALTH CHECK — เตือนทันทีถ้า Supabase หลับ/ล่ม (กันครูแก้งานแล้วซิงค์ไม่ขึ้น)
+// ═══════════════════════════════════════════════
+async function checkServerHealth(){
+  try{
+    var ctrl=new AbortController();
+    var to=setTimeout(function(){ctrl.abort();},8000); // เกิน 8 วิ ถือว่าไม่ตอบ
+    var r=await fetch(SUPABASE_URL+'/auth/v1/health',{headers:{apikey:SUPABASE_ANON_KEY},signal:ctrl.signal});
+    clearTimeout(to);
+    return r.ok; // 200 = ตื่นอยู่
+  }catch(e){
+    return false; // ต่อไม่ติด / timeout / ถูก pause
+  }
+}
+function showServerDownBanner(){
+  if(document.getElementById('server-down-banner'))return;
+  var b=document.createElement('div');
+  b.id='server-down-banner';
+  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9999;background:#b31515;color:#fff;'
+    +'font-family:inherit;font-size:13px;font-weight:600;text-align:center;padding:9px 14px;'
+    +'box-shadow:0 2px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+  b.innerHTML='⚠ เชื่อมต่อฐานข้อมูลไม่ได้ — เซิร์ฟเวอร์อาจหยุดชั่วคราว (Supabase paused) '
+    +'<span style="font-weight:400;opacity:.92">งานที่แก้จะเก็บในเครื่องเท่านั้น อาจไม่ถูกซิงค์ โปรดแจ้งผู้ดูแล</span>'
+    +'<button onclick="retryServerHealth(this)" style="background:#fff;color:#b31515;border:none;border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer;font-family:inherit">ตรวจสอบใหม่</button>';
+  document.body.appendChild(b);
+}
+function hideServerDownBanner(){
+  var b=document.getElementById('server-down-banner');
+  if(b)b.remove();
+}
+async function retryServerHealth(btn){
+  if(btn){btn.textContent='กำลังตรวจ...';btn.disabled=true;}
+  var ok=await checkServerHealth();
+  if(ok){hideServerDownBanner();toast('✓ เชื่อมต่อเซิร์ฟเวอร์ได้แล้ว','ok');}
+  else{if(btn){btn.textContent='ตรวจสอบใหม่';btn.disabled=false;}toast('ยังเชื่อมต่อไม่ได้ — เซิร์ฟเวอร์อาจยังหลับอยู่','warn');}
+}
+
 async function bootApp(){
   var dot=document.getElementById('sync-dot'),lbl=document.getElementById('sync-label');
   dot.className='sync-dot saving';
   lbl.textContent='กำลังเชื่อมต่อ...';
+  // ตรวจสุขภาพเซิร์ฟเวอร์ก่อน — ถ้าหลับ/ล่ม โชว์แบนเนอร์เตือนทันที
+  if(!(await checkServerHealth())) showServerDownBanner();
+  else hideServerDownBanner();
   try{
     try{
       var term=await resolveActiveTerm();
