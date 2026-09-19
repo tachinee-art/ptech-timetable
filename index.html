@@ -873,6 +873,18 @@ var tt = {};      // tt[room][day][period] = {blockId, groups[]}
 var view  = 'room', item = RM[0];
 var drag  = null;
 var nextId=(function(){var m=blocks.length;blocks.forEach(function(b){var n=parseInt((b.id||'').replace(/[^0-9]/g,''))||0;if(n>m)m=n;});return m+1;})();
+// คำนวณ nextId ใหม่จาก blocks ปัจจุบัน — เรียกหลังโหลด draft เพื่อไม่ให้ค้างค่าเก่า
+function recalcNextId(){
+  var m=blocks.length;
+  blocks.forEach(function(b){var n=parseInt((b.id||'').replace(/[^0-9]/g,''))||0;if(n>m)m=n;});
+  nextId=m+1;
+}
+// สร้าง id ของวิชาใหม่ที่การันตีไม่ซ้ำกับ block ที่มีอยู่ (กันบั๊ก id ชนกันหลังโหลด draft → วิชาใหม่ทับวิชาเดิม)
+function genBlockId(){
+  var id;
+  do{ id='x'+(nextId++); }while(blocks.some(function(b){return b.id===id;}));
+  return id;
+}
 var roomCtx = null, selRoom = null;
 var pickCtx = null, _addTab = 'subj';
 var _dirty  = false;
@@ -1822,7 +1834,7 @@ function addBlock(){
   var groups=getSelGrps('add-grp-grid');
   if(!sub){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e23\u0e30\u0e1a\u0e38\u0e0a\u0e37\u0e48\u0e2d\u0e27\u0e34\u0e0a\u0e32');return;}
   if(!groups.length){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19');return;}
-  var id='x'+(nextId++);
+  var id=genBlockId();
   blocks.push({id:id,subject:sub,teacher:document.getElementById('at-sel').value,room:document.getElementById('ar-sel').value,groups:groups,classGroup:groups[0],periodsPerWeek:parseInt(document.getElementById('aperiods').value)||2,faculty:document.getElementById('af-sel').value});
   document.getElementById('as').value='';
   buildGrpGrid('add-grp-grid',[]);
@@ -2436,6 +2448,7 @@ function loadDraftData(data){
   if(data.userBlocks&&data.userBlocks.length){
     data.userBlocks.forEach(function(b){blocks.push(Object.assign({},b));});
   }
+  recalcNextId(); // ให้ nextId เดินต่อจากวิชาที่เพิ่งโหลดมา ไม่ค้างค่าเก่าจนสร้าง id ซ้ำ
   // 5. Restore rooms & teachers — รีเซ็ตกลับไป baseline ของเทอมก่อนเสมอ แล้วค่อย apply diff ของ draft นี้
   // (ถ้าไม่รีเซ็ตก่อน ห้อง/ครูที่เพิ่งลบใน draft อื่นจะ "ฟื้นคืนชีพ" กลับมาเวลาโหลด draft เก่า)
   TCH=TEACHERS_BASE.slice();
