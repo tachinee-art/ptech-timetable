@@ -661,6 +661,7 @@ input,select,textarea{font-family:inherit}
         <button class="ibtn" style="width:100%;margin-top:6px" onclick="addSpecialSlotRow()">+ เพิ่มคาบพิเศษ</button>
         <div class="section-head">เวลาแต่ละคาบ</div>
         <div id="period-times-list"></div>
+        <button class="ibtn" style="width:100%;margin-top:6px" onclick="addPeriodRow()">+ เพิ่มคาบ</button>
         <div class="section-head">ช่วงพักระหว่างคาบ (พักเบรก/โฮมรูมเช้า)</div>
         <div id="breaks-list"></div>
         <button class="ibtn" style="width:100%;margin-top:6px" onclick="addBreakRow()">+ เพิ่มช่วงพัก</button>
@@ -827,9 +828,10 @@ input,select,textarea{font-family:inherit}
       <div class="fld" style="margin-top:10px">
         <label>สร้างเทอมใหม่</label>
         <input type="text" id="new-term-name" placeholder="ชื่อเทอม เช่น ภาคเรียนที่ 2/2568">
-        <div style="display:flex;gap:6px;margin-top:6px">
-          <button class="ibtn" style="flex:1" onclick="createTerm('blank')" title="รายวิชา ชั้นเรียน และตารางเริ่มใหม่หมด แต่คงรายชื่อครู/ห้องจากเทอมปัจจุบัน">+ เทอมว่าง</button>
-          <button class="ibtn" style="flex:1" onclick="createTerm('duplicate')">+ คัดลอกจากเทอมปัจจุบัน</button>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <button class="ibtn" style="flex:1;min-width:120px" onclick="createTerm('blank')" title="รายวิชา ชั้นเรียน และตารางเริ่มใหม่หมด แต่คงรายชื่อครู/ห้องจากเทอมปัจจุบัน">+ เทอมว่าง</button>
+          <button class="ibtn" style="flex:1;min-width:120px" onclick="createTerm('keepclasses')" title="คงชั้นเรียน นักเรียน ครู ห้อง และการตั้งค่าจากเทอมปัจจุบัน แต่เริ่มรายวิชาใหม่ (ไม่ดึงรายวิชามา)">+ ไม่เอารายวิชา</button>
+          <button class="ibtn" style="flex:1;min-width:120px" onclick="createTerm('duplicate')" title="คัดลอกทุกอย่างจากเทอมปัจจุบัน รวมถึงรายวิชา">+ คัดลอกทั้งหมด</button>
         </div>
       </div>
     </div>
@@ -2025,6 +2027,7 @@ function renderClassMgr(){
 
 // คาบพักเที่ยง/คาบพิเศษ (ชมรม/โฮมรูม ฯลฯ) เป็นข้อมูลระดับเทอมเหมือนชั้นเรียน — บันทึกทันทีไม่รอ autosave draft
 var _editSpecialSlots=null; // สำเนาชั่วคราวขณะแก้ไข ก่อนกด "บันทึกการตั้งค่า"
+var _editPeriods=null;      // สำเนาคาบเรียนขณะแก้ไข (เพิ่ม/ลบ/แก้เวลา) ก่อนกดบันทึก
 function renderScheduleSettings(){
   var prefixes=[];
   CL.forEach(function(c){
@@ -2048,6 +2051,8 @@ function renderScheduleSettings(){
   document.getElementById('lunch-settings-list').innerHTML=lh;
   _editSpecialSlots=SPECIAL_SLOTS.map(function(s){return Object.assign({},s);});
   renderSpecialSlotsList();
+  // _origId = id เดิมของคาบ ใช้ตอน remap เมื่อเพิ่ม/ลบ/เรียงเลขใหม่ (คาบที่เพิ่มใหม่จะเป็น null)
+  _editPeriods=PD.map(function(p){return {t:p.t,tEnd:p.tEnd,_origId:p.id};});
   renderPeriodTimesList();
   _editBreaks=BREAKS.map(function(b){return Object.assign({},b);});
   renderBreaksList();
@@ -2059,15 +2064,62 @@ function renderScheduleSettings(){
   var tt2=document.getElementById('tpl-teacher'); if(tt2)tt2.value=tpl.teacher||'';
 }
 function renderPeriodTimesList(){
+  if(!_editPeriods)_editPeriods=PD.map(function(p){return {t:p.t,tEnd:p.tEnd,_origId:p.id};});
   var el=document.getElementById('period-times-list'),h='';
-  PD.forEach(function(p){
-    h+='<div class="row2" style="grid-template-columns:56px 1fr 1fr;gap:4px;align-items:center;margin-bottom:5px">'
-      +'<div style="font-size:12px;font-weight:600">คาบ '+p.id+'</div>'
-      +'<input type="time" class="pt-start" data-id="'+p.id+'" value="'+esc(p.t)+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
-      +'<input type="time" class="pt-end" data-id="'+p.id+'" value="'+esc(p.tEnd||'')+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+  _editPeriods.forEach(function(p,i){
+    // เลขคาบแสดงตามลำดับ (i+1) เพื่อให้ต่อเนื่องเสมอ — id จริงจะถูกเรียงใหม่ตอนกดบันทึก
+    h+='<div class="row2" style="grid-template-columns:56px 1fr 1fr auto;gap:4px;align-items:center;margin-bottom:5px">'
+      +'<div style="font-size:12px;font-weight:600">คาบ '+(i+1)+'</div>'
+      +'<input type="time" class="pt-start" data-i="'+i+'" value="'+esc(p.t)+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'<input type="time" class="pt-end" data-i="'+i+'" value="'+esc(p.tEnd||'')+'" style="padding:5px 6px;border:1.5px solid var(--line);border-radius:var(--r);font-size:11px">'
+      +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removePeriodRow('+i+')" title="ลบคาบนี้">×</button>'
       +'</div>';
   });
   el.innerHTML=h;
+}
+function syncPeriodsFromDOM(){
+  if(!_editPeriods)return;
+  document.querySelectorAll('.pt-start').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i')); if(_editPeriods[i])_editPeriods[i].t=inp.value;
+  });
+  document.querySelectorAll('.pt-end').forEach(function(inp){
+    var i=parseInt(inp.getAttribute('data-i')); if(_editPeriods[i])_editPeriods[i].tEnd=inp.value;
+  });
+}
+function addPeriodRow(){
+  syncPeriodsFromDOM();
+  _editPeriods.push({t:'',tEnd:'',_origId:null}); // คาบใหม่ ยังไม่มี id เดิม
+  renderPeriodTimesList();
+}
+// นับจำนวนรายการที่จัดไว้ในคาบ (ตาม id เดิม) เพื่อเตือนก่อนลบ
+function countPeriodPlacements(origId){
+  var n=0;
+  RM.forEach(function(r){ if(!tt[r])return; DY.forEach(function(d){ if(tt[r][d]&&tt[r][d][origId])n++; }); });
+  return n;
+}
+function removePeriodRow(i){
+  syncPeriodsFromDOM();
+  if(_editPeriods.length<=1){toast('ต้องมีอย่างน้อย 1 คาบ','warn');return;}
+  var p=_editPeriods[i];
+  var used=(p&&p._origId!=null)?countPeriodPlacements(p._origId):0;
+  var warn=used>0?'\n\n⚠ คาบนี้มี '+used+' รายการที่จัดไว้ จะถูกลบทั้งหมด':'';
+  if(!confirm('ลบคาบ '+(i+1)+'?'+warn+'\n(คาบที่เหลือจะเรียงเลขใหม่อัตโนมัติเมื่อกดบันทึก)'))return;
+  _editPeriods.splice(i,1);
+  renderPeriodTimesList();
+}
+// ย้ายข้อมูลในตารางเรียนตาม map {idเดิม:idใหม่} — คาบที่ถูกลบ (ไม่มีใน map) จะถูกทิ้ง
+function migrateTimetablePeriods(map){
+  RM.forEach(function(r){
+    if(!tt[r])return;
+    DY.forEach(function(d){
+      var day=tt[r][d]||{},nd={};
+      Object.keys(day).forEach(function(oldP){
+        var np=map[parseInt(oldP)];
+        if(np)nd[np]=day[oldP];
+      });
+      tt[r][d]=nd;
+    });
+  });
 }
 var _editBreaks=null;
 function renderBreaksList(){
@@ -2180,25 +2232,35 @@ function saveTermSettings(){
     if(!val)return;
     CL.forEach(function(c){ if(c.split('/')[0]===pre)newLunch[c]=val; });
   });
-  LUNCH_PERIOD=newLunch;
+  // เก็บค่าที่เลือกไว้ก่อน โดยยังอ้างด้วย id คาบ "เดิม" (จะ remap เป็น id ใหม่ทีหลัง)
   syncSpecialSlotsFromDOM();
-  SPECIAL_SLOTS=(_editSpecialSlots||[]).filter(function(s){return s.label;});
-
-  var newPD=PD.map(function(p){return Object.assign({},p);});
-  document.querySelectorAll('.pt-start').forEach(function(inp){
-    var id=parseInt(inp.getAttribute('data-id'));
-    var p=newPD.find(function(x){return x.id===id;});
-    if(p&&inp.value)p.t=inp.value;
-  });
-  document.querySelectorAll('.pt-end').forEach(function(inp){
-    var id=parseInt(inp.getAttribute('data-id'));
-    var p=newPD.find(function(x){return x.id===id;});
-    if(p&&inp.value)p.tEnd=inp.value;
-  });
-  PD=newPD;
-
   syncBreaksFromDOM();
-  BREAKS=(_editBreaks||[]).filter(function(b){return b.label&&b.t&&b.tEnd;});
+  syncPeriodsFromDOM();
+
+  // เรียงคาบใหม่ 1..N + สร้าง map {idเดิม:idใหม่} — คาบที่ถูกลบจะไม่อยู่ใน map
+  if(!_editPeriods)_editPeriods=PD.map(function(p){return {t:p.t,tEnd:p.tEnd,_origId:p.id};});
+  var mapON={},finalPD=[],pdChanged=(PD.length!==_editPeriods.length);
+  _editPeriods.forEach(function(p,idx){
+    var nid=idx+1;
+    if(p._origId!=null){ mapON[p._origId]=nid; if(p._origId!==nid)pdChanged=true; }
+    else pdChanged=true;
+    finalPD.push({id:nid,t:p.t||'',tEnd:p.tEnd||''});
+  });
+  // ย้ายข้อมูลในตารางเรียนตาม map (คาบที่ถูกลบ ข้อมูลจะถูกทิ้ง) แล้วตั้ง PD ใหม่
+  if(pdChanged)migrateTimetablePeriods(mapON);
+  PD=finalPD;
+
+  // remap การอ้างอิงคาบทั้งหมดให้ตรงกับ id ใหม่ (ตัวที่อ้างคาบที่ถูกลบ จะถูกตัดทิ้ง)
+  var remapLunch={};
+  Object.keys(newLunch).forEach(function(c){ var n=mapON[newLunch[c]]; if(n)remapLunch[c]=n; });
+  LUNCH_PERIOD=remapLunch;
+  SPECIAL_SLOTS=(_editSpecialSlots||[])
+    .filter(function(s){return s.label&&mapON[s.p];})
+    .map(function(s){return Object.assign({},s,{p:mapON[s.p]});});
+  BREAKS=(_editBreaks||[])
+    .filter(function(b){return b.label&&b.t&&b.tEnd&&mapON[b.beforePeriod];})
+    .map(function(b){return Object.assign({},b,{beforePeriod:mapON[b.beforePeriod]});});
+  if(pdChanged)setDirty(true); // ตารางถูกย้ายคาบ → ให้ draft บันทึกด้วย
 
   var dnEl=document.getElementById('director-name');
   DIRECTOR_NAME=dnEl?dnEl.value.trim():'';
@@ -2221,6 +2283,7 @@ function saveTermSettings(){
       if(res&&res.error){toast('บันทึกการตั้งค่าไม่สำเร็จ: '+res.error.message,'err');return;}
       toast('บันทึกการตั้งค่าคาบเรียนแล้ว','ok');
     });
+  renderScheduleSettings(); // refresh หน้าตั้งค่าให้ _editPeriods/breaks/special ตรงกับ PD ใหม่ (กัน save ซ้ำแล้ว migrate ผิด)
   render();
 }
 
@@ -2752,15 +2815,19 @@ async function createTerm(mode){
   var name=nameInput.value.trim();
   if(!name){toast('กรุณาระบุชื่อเทอม');return;}
   var id='term_'+Date.now();
+  // duplicate = คัดลอกทุกอย่างรวมรายวิชา | keepclasses = คงชั้นเรียน/นักเรียน/ตั้งค่า แต่ไม่เอารายวิชา | blank = ว่างหมด
+  var keepClasses = (mode==='duplicate' || mode==='keepclasses');
+  var copySubjects = (mode==='duplicate');
+  var copySettings = (mode==='duplicate' || mode==='keepclasses');
   var payload={
     id:id, name:name,
-    blocks_data: mode==='duplicate'?BLOCKS_DATA:[],
-    classes: mode==='duplicate'?CL:[],
-    students: mode==='duplicate'?STUDENTS:{},
+    blocks_data: copySubjects?BLOCKS_DATA:[],
+    classes: keepClasses?CL:[],
+    students: keepClasses?STUDENTS:{},
     // ครู/ห้อง เป็นทรัพยากรที่ใช้ร่วมกันข้ามเทอม — ดึงมาจากเทอมปัจจุบันเสมอ แม้จะสร้างเทอมว่าง
     teachers: TCH,
     rooms: ROOM_CAP,
-    settings: mode==='duplicate'?{lunchPeriods:Object.assign({},LUNCH_PERIOD),specialSlots:SPECIAL_SLOTS.slice()}:{},
+    settings: copySettings?buildSettingsPayload():{},
     updated_by: currentUserEmail
   };
   try{
