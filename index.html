@@ -2596,6 +2596,7 @@ async function saveDraft(){
   lbl.textContent='กำลังบันทึก...';
   var data=collectDraftData();
   try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(data));localStorage.removeItem('ptech_snapshot');}catch(e0){}
+  rememberOpenDraft(); // จำ draft นี้ไว้ ให้รีเฟรชแล้วกลับมาที่ draft เดิม
   try{
     var res=await supabase.from('drafts').upsert({id:_currentDraftId,term_id:_currentTermId,name:name,data:data,ts:data.ts,updated_by:currentUserEmail});
     if(res.error) throw res.error;
@@ -2680,6 +2681,7 @@ async function loadDraft(id){
     var res=await supabase.from('drafts').select('*').eq('id',id).single();
     if(res.error||!res.data){toast('ไม่พบ Draft','err');return;}
     _currentDraftId=id;
+    rememberOpenDraft();
     document.getElementById('draft-name').value=res.data.name||'Draft';
     loadDraftData(res.data.data);
     subscribeToDraft(id);
@@ -2698,10 +2700,13 @@ async function deleteDraft(id){
 }
 function newDraft(){
   _currentDraftId='draft_'+Date.now();
+  rememberOpenDraft();
   document.getElementById('draft-name').value='ตารางใหม่';
   initTT();blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   setDirty(false);render();closeDraftsMgr();toast('Draft ใหม่พร้อมแล้ว');
 }
+// จำ draft ที่กำลังเปิดอยู่ ลง localStorage เพื่อให้รีเฟรชแล้วกลับมาที่ draft เดิม (ไม่ใช่ draft ts ใหม่สุด)
+function rememberOpenDraft(){ try{localStorage.setItem('ptech_last_draft',_currentDraftId);}catch(e){} }
 
 // ═══════════════════════════════════════════════
 // TERM MANAGER (สลับ/สร้าง/ลบเทอม)
@@ -2774,6 +2779,7 @@ async function switchTerm(id){
       setDirty(false);
       popAddForms();popViewSel();render();
     }
+    rememberOpenDraft();
     subscribeToDraft(_currentDraftId);
     closeTermsMgr();
     toast('สลับไปเทอม: '+res.data.name);
@@ -3212,19 +3218,33 @@ async function bootApp(){
       toast('โหลดข้อมูลเทอมไม่สำเร็จ — ใช้ข้อมูลตั้งต้นชั่วคราว: '+eTerm.message,'warn');
     }
     popTermSel();
-    var q=supabase.from('drafts').select('*').order('ts',{ascending:false}).limit(1);
-    if(_currentTermId)q=q.eq('term_id',_currentTermId);
-    var res=await q;
-    if(res.error) throw res.error;
-    var last=res.data && res.data[0];
+    // เลือก draft ที่จะโหลด: ให้ความสำคัญกับ draft ที่ผู้ใช้เปิดค้างไว้ก่อนรีเฟรช (ptech_last_draft)
+    // ถ้าไม่มี/ไม่อยู่ในเทอมนี้ ค่อย fallback เป็น draft ที่แก้ล่าสุด (ts ใหม่สุด)
+    var last=null;
+    var wantId=null; try{wantId=localStorage.getItem('ptech_last_draft');}catch(eW){}
+    if(wantId){
+      var rWant=await supabase.from('drafts').select('*').eq('id',wantId).maybeSingle();
+      if(rWant&&rWant.data&&(!_currentTermId||rWant.data.term_id===_currentTermId)) last=rWant.data;
+    }
+    if(!last){
+      var q=supabase.from('drafts').select('*').order('ts',{ascending:false}).limit(1);
+      if(_currentTermId)q=q.eq('term_id',_currentTermId);
+      var res=await q;
+      if(res.error) throw res.error;
+      last=res.data && res.data[0];
+    }
     if(!last){
       _currentDraftId='draft_'+Date.now();
+      rememberOpenDraft();
       document.getElementById('draft-name').value='ตารางใหม่';
       dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
       subscribeToDraft(_currentDraftId);
       popAddForms();popViewSel();render();
       return;
     }
+    _currentDraftId=last.id;
+    rememberOpenDraft();
+    document.getElementById('draft-name').value=last.name||'Draft'; // ตั้งชื่อให้ตรงกับ draft ที่โหลดเสมอ (กันชื่อค้างจากการรีเฟรช)
     var draftData=last.data;
     // ตรวจ snapshot ฉุกเฉิน (เก็บในเครื่อง — ไม่เกี่ยวกับเซิร์ฟเวอร์)
     var snapRaw=localStorage.getItem('ptech_snapshot');
@@ -3247,9 +3267,6 @@ async function bootApp(){
       }catch(e2){}
       localStorage.removeItem('ptech_snapshot');
     }
-    _currentDraftId=last.id;
-    if(!document.getElementById('draft-name').value)
-      document.getElementById('draft-name').value=last.name||'Draft';
     loadDraftData(draftData);
     subscribeToDraft(_currentDraftId);
     dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
