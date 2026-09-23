@@ -950,6 +950,7 @@ var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentUserEmail = null;
 var _rtChannel = null;
+var _lastKnownTs = 0; // ts ของ draft เวอร์ชันที่เราถืออยู่ — ใช้ตรวจว่ามีเวอร์ชันใหม่จากคนอื่นไหม
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -2422,13 +2423,9 @@ function subscribeToDraft(draftId){
   _rtChannel = supabase.channel('draft-'+draftId)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'drafts',filter:'id=eq.'+draftId},
       function(payload){
-        if(payload.new.updated_by===currentUserEmail) return;
-        if(_dirty){
-          toast('มีการแก้ไขจากผู้ใช้อื่น — ยังไม่บันทึกของคุณ');
-        } else {
-          loadDraftData(payload.new.data);
-          toast('ซิงค์จากผู้ใช้อื่น');
-        }
+        if(payload.new.updated_by===currentUserEmail) return;      // การแก้ของเราเอง
+        if(payload.new.ts && payload.new.ts<=_lastKnownTs) return;  // เก่ากว่าที่เรามีแล้ว
+        showNewVersionBanner(payload.new.updated_by);               // แจ้งเตือน + ปุ่มโหลดใหม่
       }).subscribe();
 }
 
@@ -2628,6 +2625,7 @@ async function saveDraft(){
     if(res.error) throw res.error;
     setDirty(false);
     hideServerDownBanner(); // เซฟขึ้นคลาวด์ได้ = เซิร์ฟเวอร์กลับมาแล้ว
+    markVersion(data.ts); hideNewVersionBanner(); // เวอร์ชันล่าสุดคือของเราเอง
     // Update timestamp in UI
     var now=new Date();
     var ts=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
@@ -2708,6 +2706,8 @@ async function loadDraft(id){
     if(res.error||!res.data){toast('ไม่พบ Draft','err');return;}
     _currentDraftId=id;
     rememberOpenDraft();
+    markVersion(res.data.ts);
+    hideNewVersionBanner();
     document.getElementById('draft-name').value=res.data.name||'Draft';
     loadDraftData(res.data.data);
     subscribeToDraft(id);
@@ -2727,6 +2727,7 @@ async function deleteDraft(id){
 function newDraft(){
   _currentDraftId='draft_'+Date.now();
   rememberOpenDraft();
+  markVersion(Date.now()); hideNewVersionBanner();
   document.getElementById('draft-name').value='ตารางใหม่';
   initTT();blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   setDirty(false);render();closeDraftsMgr();toast('Draft ใหม่พร้อมแล้ว');
@@ -2806,6 +2807,7 @@ async function switchTerm(id){
       popAddForms();popViewSel();render();
     }
     rememberOpenDraft();
+    markVersion(last?last.ts:Date.now()); hideNewVersionBanner();
     subscribeToDraft(_currentDraftId);
     closeTermsMgr();
     toast('สลับไปเทอม: '+res.data.name);
@@ -3228,6 +3230,39 @@ async function retryServerHealth(btn){
   else{if(btn){btn.textContent='ตรวจสอบใหม่';btn.disabled=false;}toast('ยังเชื่อมต่อไม่ได้ — เซิร์ฟเวอร์อาจยังหลับอยู่','warn');}
 }
 
+// ═══════════════════════════════════════════════
+// NEW-VERSION NOTICE — แจ้งเตือนเมื่อผู้ใช้อื่นแก้ตารางเดียวกัน (realtime + polling สำรอง)
+// ═══════════════════════════════════════════════
+function markVersion(ts){ _lastKnownTs = ts || Date.now(); } // จำ ts ของเวอร์ชันที่เราถืออยู่
+function showNewVersionBanner(who){
+  if(document.getElementById('new-version-banner'))return;
+  var b=document.createElement('div');
+  b.id='new-version-banner';
+  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9998;background:var(--blue);color:#fff;'
+    +'font-family:inherit;font-size:13px;font-weight:600;text-align:center;padding:9px 14px;'
+    +'box-shadow:0 2px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+  b.innerHTML='🔄 มีเวอร์ชันใหม่'+(who?' จาก '+esc(who):'')+' — ผู้ใช้อื่นเพิ่งแก้ตารางนี้ '
+    +'<button onclick="reloadForNewVersion()" style="background:#fff;color:var(--blue);border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-family:inherit">โหลดใหม่</button>';
+  document.body.appendChild(b);
+}
+function hideNewVersionBanner(){ var b=document.getElementById('new-version-banner'); if(b)b.remove(); }
+function reloadForNewVersion(){
+  if(_dirty && !confirm('คุณมีงานที่ยังไม่บันทึก การโหลดใหม่จะทับงานที่ยังไม่บันทึกของคุณ\nต้องการโหลดเวอร์ชันใหม่ต่อหรือไม่?'))return;
+  location.reload();
+}
+// polling สำรอง — เผื่อ Supabase Realtime ไม่ได้เปิด ก็ยังตรวจเจอเวอร์ชันใหม่
+async function pollNewVersion(){
+  if(!_currentDraftId || !currentUserEmail) return;
+  if(document.getElementById('new-version-banner')) return; // แจ้งไปแล้ว
+  try{
+    var r=await supabase.from('drafts').select('ts,updated_by').eq('id',_currentDraftId).maybeSingle();
+    if(r&&r.data&&r.data.ts>_lastKnownTs&&r.data.updated_by!==currentUserEmail){
+      showNewVersionBanner(r.data.updated_by);
+    }
+  }catch(e){}
+}
+setInterval(pollNewVersion, 8000); // เช็คทุก 8 วินาที (การันตีเห็นเวอร์ชันใหม่ ≤10 วิ แม้ไม่เปิด Realtime)
+
 async function bootApp(){
   var dot=document.getElementById('sync-dot'),lbl=document.getElementById('sync-label');
   dot.className='sync-dot saving';
@@ -3270,6 +3305,7 @@ async function bootApp(){
     }
     _currentDraftId=last.id;
     rememberOpenDraft();
+    markVersion(last.ts); // จำเวอร์ชันที่โหลดมา ใช้ตรวจเวอร์ชันใหม่จากคนอื่น
     document.getElementById('draft-name').value=last.name||'Draft'; // ตั้งชื่อให้ตรงกับ draft ที่โหลดเสมอ (กันชื่อค้างจากการรีเฟรช)
     var draftData=last.data;
     // ตรวจ snapshot ฉุกเฉิน (เก็บในเครื่อง — ไม่เกี่ยวกับเซิร์ฟเวอร์)
