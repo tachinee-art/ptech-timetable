@@ -804,6 +804,22 @@ input,select,textarea{font-family:inherit}
   </div>
 </div>
 
+<!-- CLASS EDIT MODAL — แก้ข้อมูลชั้นเรียนทุกช่องในหน้าเดียว -->
+<div class="overlay" id="class-edit-modal">
+  <div class="modal modal-sm">
+    <h2 id="ce-title">แก้ไขข้อมูลชั้นเรียน</h2>
+    <div class="modal-body">
+      <div class="fld"><label>จำนวนนักเรียน</label><input type="number" id="ce-students" min="0" placeholder="เช่น 17"></div>
+      <div class="fld"><label>สาขา</label><input type="text" id="ce-dept" placeholder="เช่น ช่างกลโรงงาน"></div>
+      <div class="fld"><label>อาจารย์ที่ปรึกษา</label><input type="text" id="ce-advisor" placeholder="เช่น อ.กิตติภูมิ พิมพ์สุข"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="ibtn" onclick="closeClassEditModal()">ยกเลิก</button>
+      <button class="ibtn ibtn-pri" onclick="saveClassEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- DRAFTS MANAGER MODAL -->
 <div class="overlay" id="drafts-modal">
   <div class="modal modal-lg">
@@ -2018,15 +2034,27 @@ function addClassGroup(){
   saveTermRoster();
   popAddForms();popViewSel();renderClassMgr();render();toast('เพิ่มชั้นเรียนแล้ว');
 }
+var _classEditCtx=null;
 function editClassStudents(name){
-  var cur=STUDENTS[name]||0,val=prompt('แก้ไขจำนวนนักเรียน '+name+' (ตอนนี้ '+cur+')',cur);
-  var n=parseInt(val);if(isNaN(n)||n<0)return;
+  _classEditCtx=name;
+  document.getElementById('ce-title').textContent='แก้ไขข้อมูลชั้นเรียน '+name;
+  document.getElementById('ce-students').value=STUDENTS[name]||0;
+  document.getElementById('ce-dept').value=CLASS_DEPT[name]||'';
+  document.getElementById('ce-advisor').value=CLASS_ADVISOR[name]||'';
+  document.getElementById('class-edit-modal').classList.add('open');
+  setTimeout(function(){var el=document.getElementById('ce-students');if(el)el.focus();},50);
+}
+function closeClassEditModal(){document.getElementById('class-edit-modal').classList.remove('open');_classEditCtx=null;}
+function saveClassEdit(){
+  var name=_classEditCtx;if(!name)return;
+  var n=parseInt(document.getElementById('ce-students').value);
+  if(isNaN(n)||n<0){toast('จำนวนนักเรียนไม่ถูกต้อง','warn');return;}
   STUDENTS[name]=n;
-  var dept=prompt('สาขา '+name+' (เว้นว่างได้)',CLASS_DEPT[name]||'');
-  if(dept!==null)CLASS_DEPT[name]=dept.trim();
-  var advisor=prompt('อาจารย์ที่ปรึกษา '+name+' (เว้นว่างได้)',CLASS_ADVISOR[name]||'');
-  if(advisor!==null)CLASS_ADVISOR[name]=advisor.trim();
+  CLASS_DEPT[name]=document.getElementById('ce-dept').value.trim();
+  CLASS_ADVISOR[name]=document.getElementById('ce-advisor').value.trim();
   saveTermRoster();renderClassMgr();render();
+  closeClassEditModal();
+  toast('บันทึกข้อมูลชั้นเรียนแล้ว','ok');
 }
 function removeClassGroup(name){
   var used=countClassPeriods(name);
@@ -3057,7 +3085,7 @@ document.addEventListener('keydown',function(e){
 // ═══════════════════════════════════════════════
 // CLOSE OVERLAYS ON BG CLICK
 // ═══════════════════════════════════════════════
-['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal'].forEach(function(id){
+['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal','class-edit-modal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
