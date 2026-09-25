@@ -975,6 +975,18 @@ function initTT(){
   tt = {};
   RM.forEach(function(r){ tt[r]={}; DY.forEach(function(d){ tt[r][d]={}; }); });
 }
+// เรียงแบบธรรมชาติ: เทียบส่วนที่เป็นตัวเลขเป็น "จำนวน" ไม่ใช่ตัวอักษร
+// เช่น 1/1, 1/2, ... 1/9, 1/10 (ไม่ใช่ 1/1, 1/10, 1/2)
+function natCmp(a,b){
+  a=String(a==null?'':a); b=String(b==null?'':b);
+  var ax=a.match(/(\d+|\D+)/g)||[], bx=b.match(/(\d+|\D+)/g)||[];
+  for(var i=0;i<Math.min(ax.length,bx.length);i++){
+    var an=ax[i], bn=bx[i];
+    if(/^\d/.test(an)&&/^\d/.test(bn)){ var d=parseInt(an,10)-parseInt(bn,10); if(d)return d; }
+    else if(an!==bn){ return an<bn?-1:1; }
+  }
+  return ax.length-bx.length;
+}
 
 // ═══════════════════════════════════════════════
 // THEME (มืด/สว่าง)
@@ -2024,7 +2036,7 @@ function addClassGroup(){
   var advisor=document.getElementById('new-class-advisor').value.trim();
   if(!name){toast('กรุณาระบุชื่อชั้นเรียน');return;}
   if(CL.indexOf(name)>=0){toast('มีอยู่แล้ว');return;}
-  CL.push(name);CL.sort();
+  CL.push(name);CL.sort(natCmp);
   STUDENTS[name]=n;
   if(dept)CLASS_DEPT[name]=dept;
   if(advisor)CLASS_ADVISOR[name]=advisor;
@@ -2069,7 +2081,7 @@ function removeClassGroup(name){
 }
 function renderClassMgr(){
   var el=document.getElementById('class-mgr-list'),h='';
-  CL.slice().sort().forEach(function(c){
+  CL.slice().sort(natCmp).forEach(function(c){
     var meta=(STUDENTS[c]||0)+' คน'+(CLASS_DEPT[c]?' · '+esc(CLASS_DEPT[c]):'')+(CLASS_ADVISOR[c]?' · ที่ปรึกษา '+esc(CLASS_ADVISOR[c]):'');
     h+='<div class="bcard" style="cursor:default;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:6px;padding:6px 8px">'
       +'<div><div style="font-size:11px;font-weight:500">'+esc(c)+'</div><div style="font-size:10px;color:var(--ink3)">'+meta+'</div></div>'
@@ -3139,7 +3151,7 @@ initTT();
 // ═══════════════════════════════════════════════
 function loadTermData(t){
   BLOCKS_DATA = t.blocks_data||[];
-  CL = (t.classes||[]).slice();
+  CL = (t.classes||[]).slice().sort(natCmp);
   STUDENTS = Object.assign({},t.students||{});
   TCH = (t.teachers||[]).slice();
   ROOM_CAP = Object.assign({},t.rooms||{});
