@@ -804,18 +804,15 @@ input,select,textarea{font-family:inherit}
   </div>
 </div>
 
-<!-- CLASS EDIT MODAL — แก้ข้อมูลชั้นเรียนทุกช่องในหน้าเดียว -->
-<div class="overlay" id="class-edit-modal">
+<!-- ENTITY EDIT MODAL — popup กลางสำหรับแก้ ห้อง / ครู / ชั้นเรียน ได้ทุกช่องในหน้าเดียว (ช่องสร้างด้วย JS) -->
+<div class="overlay" id="ent-edit-modal">
   <div class="modal modal-sm">
-    <h2 id="ce-title">แก้ไขข้อมูลชั้นเรียน</h2>
-    <div class="modal-body">
-      <div class="fld"><label>จำนวนนักเรียน</label><input type="number" id="ce-students" min="0" placeholder="เช่น 17"></div>
-      <div class="fld"><label>สาขา</label><input type="text" id="ce-dept" placeholder="เช่น ช่างกลโรงงาน"></div>
-      <div class="fld"><label>อาจารย์ที่ปรึกษา</label><input type="text" id="ce-advisor" placeholder="เช่น อ.กิตติภูมิ พิมพ์สุข"></div>
-    </div>
+    <h2 id="ee-title">แก้ไข</h2>
+    <div class="modal-sub" id="ee-sub"></div>
+    <div class="modal-body" id="ee-body"></div>
     <div class="modal-foot">
-      <button class="ibtn" onclick="closeClassEditModal()">ยกเลิก</button>
-      <button class="ibtn ibtn-pri" onclick="saveClassEdit()">บันทึก</button>
+      <button class="ibtn" onclick="closeEntEdit()">ยกเลิก</button>
+      <button class="ibtn ibtn-pri" onclick="saveEntEdit()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -1901,7 +1898,7 @@ function addTeacher(){
   var name=document.getElementById('new-tch').value.trim();
   if(!name){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e23\u0e30\u0e1a\u0e38\u0e0a\u0e37\u0e48\u0e2d');return;}
   if(TCH.indexOf(name)>=0){toast('\u0e21\u0e35\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27');return;}
-  TCH.push(name);TCH.sort();
+  TCH.push(name);TCH.sort();setDirty(true);
   document.getElementById('new-tch').value='';
   popAddForms();renderTchList();toast('\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e04\u0e23\u0e39\u0e41\u0e25\u0e49\u0e27');
 }
@@ -1909,23 +1906,8 @@ function removeTeacher(name){
   var used=countTeacherPeriods(name);
   var warn=used>0?'\n\n\u26a0 \u0e04\u0e23\u0e39\u0e04\u0e19\u0e19\u0e35\u0e49\u0e22\u0e31\u0e07\u0e21\u0e35 '+used+' \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\n\u0e04\u0e32\u0e1a\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e08\u0e30\u0e22\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e15\u0e48\u0e08\u0e30\u0e2b\u0e32\u0e22\u0e08\u0e32\u0e01\u0e21\u0e38\u0e21\u0e21\u0e2d\u0e07\u0e04\u0e23\u0e39 (\u0e01\u0e25\u0e32\u0e22\u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e01\u0e33\u0e1e\u0e23\u0e49\u0e32)':'';
   if(!confirm('\u0e25\u0e1a '+name+'?'+warn))return;
-  TCH=TCH.filter(function(t){return t!==name;});
+  TCH=TCH.filter(function(t){return t!==name;});setDirty(true);
   popAddForms();renderTchList();
-}
-// แก้ชื่อครู — อัปเดตชื่อในทุกรายวิชาที่ครูคนนี้สอนด้วย เพื่อไม่ให้วิชาหลุดจากครู
-function renameTeacher(oldName){
-  var val=prompt('แก้ไขชื่อครู',oldName);
-  if(val===null)return;
-  var newName=val.trim();
-  if(!newName||newName===oldName)return;
-  if(TCH.indexOf(newName)>=0){toast('มีครูชื่อนี้อยู่แล้ว','warn');return;}
-  TCH=TCH.map(function(t){return t===oldName?newName:t;}).sort();
-  var n=0;
-  blocks.forEach(function(b){if(b.teacher===oldName){b.teacher=newName;n++;}});
-  if(view==='teacher'&&item===oldName)item=newName;
-  setDirty(true);
-  popAddForms();renderTchList();popViewSel();render();
-  toast('เปลี่ยนชื่อครูแล้ว'+(n?' (อัปเดต '+n+' รายวิชา)':''),'ok');
 }
 function renderTchList(){
   var el=document.getElementById('tch-list'),h='';
@@ -1945,21 +1927,16 @@ function addRoom(){
   if(ROOM_CAP[name]!==undefined){toast('\u0e21\u0e35\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27');return;}
   ROOM_CAP[name]=cap;
   if(RM.indexOf(name)<0){RM.push(name);RM.sort();}
-  initTTRoom(name);
+  initTTRoom(name);setDirty(true);
   document.getElementById('new-room').value='';
   popAddForms();popViewSel();renderRoomMgr();toast('\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e2b\u0e49\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27');
 }
 function initTTRoom(r){tt[r]={};DY.forEach(function(d){tt[r][d]={};});}
-function editRoomCap(name){
-  var cur=ROOM_CAP[name]||0,val=prompt('\u0e41\u0e01\u0e49\u0e44\u0e02\u0e04\u0e27\u0e32\u0e21\u0e08\u0e38\u0e2b\u0e49\u0e2d\u0e07 '+name+' (\u0e15\u0e2d\u0e19\u0e19\u0e35\u0e49 '+cur+')',cur);
-  var n=parseInt(val);if(isNaN(n)||n<1)return;
-  ROOM_CAP[name]=n;renderRoomMgr();render();
-}
 function removeRoom(name){
   var used=countRoomPeriods(name);
   var warn=used>0?'\n\n\u26a0 \u0e2b\u0e49\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e22\u0e31\u0e07\u0e21\u0e35 '+used+' \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\n\u0e04\u0e32\u0e1a\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e08\u0e30\u0e16\u0e39\u0e01\u0e0b\u0e48\u0e2d\u0e19\u0e2d\u0e2d\u0e01\u0e08\u0e32\u0e01\u0e17\u0e38\u0e01\u0e21\u0e38\u0e21\u0e21\u0e2d\u0e07 (\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e22\u0e31\u0e07\u0e04\u0e49\u0e32\u0e07\u0e2d\u0e22\u0e39\u0e48)':'';
   if(!confirm('\u0e25\u0e1a\u0e2b\u0e49\u0e2d\u0e07 '+name+'?'+warn))return;
-  delete ROOM_CAP[name];RM=RM.filter(function(r){return r!==name;});
+  delete ROOM_CAP[name];RM=RM.filter(function(r){return r!==name;});setDirty(true);
   popAddForms();popViewSel();renderRoomMgr();render();
 }
 function renderRoomMgr(){
@@ -2062,27 +2039,131 @@ function addClassGroup(){
   saveTermRoster();
   popAddForms();popViewSel();renderClassMgr();render();toast('เพิ่มชั้นเรียนแล้ว');
 }
-var _classEditCtx=null;
-function editClassStudents(name){
-  _classEditCtx=name;
-  document.getElementById('ce-title').textContent='แก้ไขข้อมูลชั้นเรียน '+name;
-  document.getElementById('ce-students').value=STUDENTS[name]||0;
-  document.getElementById('ce-dept').value=CLASS_DEPT[name]||'';
-  document.getElementById('ce-advisor').value=CLASS_ADVISOR[name]||'';
-  document.getElementById('class-edit-modal').classList.add('open');
-  setTimeout(function(){var el=document.getElementById('ce-students');if(el)el.focus();},50);
+// ═══ ENTITY EDIT — popup กลาง แก้ ห้อง / ครู / ชั้นเรียน ได้ทุกช่อง (รวมชื่อ) ═══
+var _entCtx=null; // {type:'room'|'teacher'|'class', name:ชื่อเดิม}
+function eeField(id,label,type,val,ph){
+  return '<div class="fld"><label>'+label+'</label><input type="'+type+'" id="'+id+'" value="'+esc(String(val==null?'':val))+'"'
+    +(ph?' placeholder="'+esc(ph)+'"':'')+(type==='number'?' min="0"':'')+'></div>';
 }
-function closeClassEditModal(){document.getElementById('class-edit-modal').classList.remove('open');_classEditCtx=null;}
-function saveClassEdit(){
-  var name=_classEditCtx;if(!name)return;
-  var n=parseInt(document.getElementById('ce-students').value);
-  if(isNaN(n)||n<0){toast('จำนวนนักเรียนไม่ถูกต้อง','warn');return;}
-  STUDENTS[name]=n;
-  CLASS_DEPT[name]=document.getElementById('ce-dept').value.trim();
-  CLASS_ADVISOR[name]=document.getElementById('ce-advisor').value.trim();
-  saveTermRoster();renderClassMgr();render();
-  closeClassEditModal();
-  toast('บันทึกข้อมูลชั้นเรียนแล้ว','ok');
+function eeVal(id){var el=document.getElementById(id);return el?el.value.trim():'';}
+function openEntEdit(type,name){
+  _entCtx={type:type,name:name};
+  var h='',title='',sub='';
+  if(type==='room'){
+    title='แก้ไขห้อง '+name;
+    sub='ใช้ในตาราง '+countRoomPeriods(name)+' คาบ';
+    h=eeField('ee-name','ชื่อห้อง','text',name,'เช่น 345')
+     +eeField('ee-cap','ความจุ (คน)','number',ROOM_CAP[name]||0,'');
+  }else if(type==='teacher'){
+    var nSub=blocks.filter(function(b){return b.teacher===name;}).length;
+    title='แก้ไขครู';
+    sub='สอน '+nSub+' รายวิชา · '+countTeacherPeriods(name)+' คาบในตาราง';
+    h=eeField('ee-name','ชื่อ-นามสกุล','text',name,'อ.ชื่อ นามสกุล');
+  }else if(type==='class'){
+    title='แก้ไขชั้นเรียน '+name;
+    sub='เรียนในตาราง '+countClassPeriods(name)+' คาบ';
+    h=eeField('ee-name','ชื่อชั้นเรียน','text',name,'เช่น ปวช.1/1')
+     +eeField('ee-students','จำนวนนักเรียน','number',STUDENTS[name]||0,'')
+     +eeField('ee-dept','สาขา','text',CLASS_DEPT[name]||'','เช่น ช่างกลโรงงาน')
+     +eeField('ee-advisor','อาจารย์ที่ปรึกษา','text',CLASS_ADVISOR[name]||'','เช่น อ.กิตติภูมิ พิมพ์สุข');
+  }
+  document.getElementById('ee-title').textContent=title;
+  document.getElementById('ee-sub').textContent=sub;
+  document.getElementById('ee-body').innerHTML=h;
+  document.getElementById('ent-edit-modal').classList.add('open');
+  setTimeout(function(){var el=document.getElementById('ee-name');if(el){el.focus();el.select();}},50);
+}
+function closeEntEdit(){document.getElementById('ent-edit-modal').classList.remove('open');_entCtx=null;}
+// ปุ่มดินสอของแต่ละแผงเรียกเข้ามาที่ popup กลาง
+function editClassStudents(name){openEntEdit('class',name);}
+function editRoomCap(name){openEntEdit('room',name);}
+function renameTeacher(name){openEntEdit('teacher',name);}
+
+// เปลี่ยนชื่อห้อง: ย้ายความจุ + คาบที่จัดไว้ + ห้องตั้งต้นของรายวิชา ไปชื่อใหม่ (ห้องเป็นข้อมูลราย draft)
+function renameRoomEverywhere(old,nu){
+  ROOM_CAP[nu]=ROOM_CAP[old]; delete ROOM_CAP[old];
+  RM=Object.keys(ROOM_CAP).sort();
+  tt[nu]=tt[old]||{}; delete tt[old];
+  DY.forEach(function(d){if(!tt[nu][d])tt[nu][d]={};});
+  blocks.forEach(function(b){if(b.room===old)b.room=nu;});
+  if(view==='room'&&item===old)item=nu;
+}
+// เปลี่ยนชื่อครู: อัปเดตครูในทุกรายวิชาที่สอน (ครูเป็นข้อมูลราย draft)
+function renameTeacherEverywhere(old,nu){
+  TCH=TCH.map(function(t){return t===old?nu:t;}).sort();
+  blocks.forEach(function(b){if(b.teacher===old)b.teacher=nu;});
+  if(view==='teacher'&&item===old)item=nu;
+}
+// เปลี่ยนชื่อชั้นเรียน: ชั้นเป็นข้อมูลระดับเทอม — อัปเดตทั้งเทอม, draft นี้ และ draft อื่นในเทอมเดียวกัน
+async function renameClassEverywhere(old,nu){
+  var rg=function(arr){return (arr||[]).map(function(g){return g===old?nu:g;});};
+  var fixBlock=function(b){if(!b)return;if(b.groups)b.groups=rg(b.groups);if(b.classGroup===old)b.classGroup=nu;};
+  var mv=function(o){if(o&&Object.prototype.hasOwnProperty.call(o,old)){o[nu]=o[old];delete o[old];}};
+  CL=CL.map(function(c){return c===old?nu:c;}).sort(natCmp);
+  mv(STUDENTS);mv(CLASS_DEPT);mv(CLASS_ADVISOR);mv(LUNCH_PERIOD);
+  BLOCKS_DATA.forEach(fixBlock);
+  blocks.forEach(fixBlock);
+  Object.keys(tt).forEach(function(r){Object.keys(tt[r]||{}).forEach(function(d){Object.keys(tt[r][d]||{}).forEach(function(p){
+    var e=tt[r][d][p];if(e&&e.groups)e.groups=rg(e.groups);
+  });});});
+  if(view==='class'&&item===old)item=nu;
+  setDirty(true);
+  if(!_currentTermId)return;
+  try{
+    var r1=await supabase.from('terms').update({classes:CL,students:STUDENTS,blocks_data:BLOCKS_DATA,settings:buildSettingsPayload()}).eq('id',_currentTermId);
+    if(r1&&r1.error)throw r1.error;
+  }catch(e){toast('อัปเดตข้อมูลเทอมไม่สำเร็จ: '+e.message,'err');}
+  try{
+    var rs=await supabase.from('drafts').select('id,data').eq('term_id',_currentTermId).neq('id',_currentDraftId);
+    var others=(rs&&rs.data)||[];
+    for(var i=0;i<others.length;i++){
+      var dd=others[i].data;if(!dd)continue;
+      var pl=dd.placed||{};
+      Object.keys(pl).forEach(function(r){Object.keys(pl[r]||{}).forEach(function(dy){Object.keys(pl[r][dy]||{}).forEach(function(p){
+        var e=pl[r][dy][p];if(!e)return;if(e.groups)e.groups=rg(e.groups);if(e._groups)e._groups=rg(e._groups);
+      });});});
+      (dd.userBlocks||[]).forEach(fixBlock);
+      Object.keys(dd.editedBlocks||{}).forEach(function(k){fixBlock(dd.editedBlocks[k]);});
+      await supabase.from('drafts').update({data:dd,ts:Date.now(),updated_by:currentUserEmail}).eq('id',others[i].id);
+    }
+  }catch(e){toast('อัปเดต draft อื่นในเทอมไม่สำเร็จ: '+e.message,'warn');}
+}
+
+async function saveEntEdit(){
+  if(!_entCtx)return;
+  var type=_entCtx.type,old=_entCtx.name,nu=eeVal('ee-name');
+  if(!nu){toast('กรุณาระบุชื่อ','warn');return;}
+  if(type==='room'){
+    var cap=parseInt(eeVal('ee-cap'));
+    if(isNaN(cap)||cap<1){toast('ความจุต้องมากกว่า 0','warn');return;}
+    if(nu!==old&&ROOM_CAP[nu]!==undefined){toast('มีห้องชื่อนี้อยู่แล้ว','warn');return;}
+    if(nu!==old)renameRoomEverywhere(old,nu);
+    ROOM_CAP[nu]=cap;
+    setDirty(true);
+    popAddForms();popViewSel();renderRoomMgr();render();
+  }else if(type==='teacher'){
+    if(nu!==old){
+      if(TCH.indexOf(nu)>=0){toast('มีครูชื่อนี้อยู่แล้ว','warn');return;}
+      renameTeacherEverywhere(old,nu);
+      setDirty(true);
+      popAddForms();renderTchList();popViewSel();render();
+    }
+  }else if(type==='class'){
+    var n=parseInt(eeVal('ee-students'));
+    if(isNaN(n)||n<0){toast('จำนวนนักเรียนไม่ถูกต้อง','warn');return;}
+    if(nu!==old){
+      if(CL.indexOf(nu)>=0){toast('มีชั้นเรียนชื่อนี้อยู่แล้ว','warn');return;}
+      if(!confirm('เปลี่ยนชื่อชั้นเรียน "'+old+'" เป็น "'+nu+'"?\n\nระบบจะอัปเดตรายวิชา คาบในตาราง และพักเที่ยงของชั้นนี้\nรวมถึง draft อื่นในเทอมเดียวกันให้ด้วย'))return;
+      await renameClassEverywhere(old,nu);
+    }
+    STUDENTS[nu]=n;
+    CLASS_DEPT[nu]=eeVal('ee-dept');
+    CLASS_ADVISOR[nu]=eeVal('ee-advisor');
+    saveTermRoster();
+    popAddForms();popViewSel();renderClassMgr();render();
+  }
+  closeEntEdit();
+  toast('บันทึกแล้ว','ok');
 }
 function removeClassGroup(name){
   var used=countClassPeriods(name);
@@ -3130,7 +3211,7 @@ document.addEventListener('keydown',function(e){
 // ═══════════════════════════════════════════════
 // CLOSE OVERLAYS ON BG CLICK
 // ═══════════════════════════════════════════════
-['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal','class-edit-modal'].forEach(function(id){
+['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal','ent-edit-modal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
