@@ -1912,11 +1912,27 @@ function removeTeacher(name){
   TCH=TCH.filter(function(t){return t!==name;});
   popAddForms();renderTchList();
 }
+// แก้ชื่อครู — อัปเดตชื่อในทุกรายวิชาที่ครูคนนี้สอนด้วย เพื่อไม่ให้วิชาหลุดจากครู
+function renameTeacher(oldName){
+  var val=prompt('แก้ไขชื่อครู',oldName);
+  if(val===null)return;
+  var newName=val.trim();
+  if(!newName||newName===oldName)return;
+  if(TCH.indexOf(newName)>=0){toast('มีครูชื่อนี้อยู่แล้ว','warn');return;}
+  TCH=TCH.map(function(t){return t===oldName?newName:t;}).sort();
+  var n=0;
+  blocks.forEach(function(b){if(b.teacher===oldName){b.teacher=newName;n++;}});
+  if(view==='teacher'&&item===oldName)item=newName;
+  setDirty(true);
+  popAddForms();renderTchList();popViewSel();render();
+  toast('เปลี่ยนชื่อครูแล้ว'+(n?' (อัปเดต '+n+' รายวิชา)':''),'ok');
+}
 function renderTchList(){
   var el=document.getElementById('tch-list'),h='';
   TCH.forEach(function(t){
     h+='<div class="bcard" style="cursor:default;display:flex;align-items:center;justify-content:space-between;padding:6px 8px">'
-      +'<span style="font-size:11px;font-weight:500">'+esc(t)+'</span>'
+      +'<span style="font-size:11px;font-weight:500;flex:1;min-width:0">'+esc(t)+'</span>'
+      +'<button class="bcard-edit" style="display:flex;position:static" onclick="renameTeacher(\''+escAttr(t)+'\')" title="แก้ไขชื่อ">&#9998;</button>'
       +'<button class="bcard-edit" style="display:flex;position:static;color:var(--red)" onclick="removeTeacher(\''+escAttr(t)+'\')">×</button>'
       +'</div>';
   });
@@ -3092,6 +3108,23 @@ document.addEventListener('keydown',function(e){
     e.preventDefault();
     saveDraft();
   }
+});
+// กด Enter ในช่องกรอก = กดปุ่มหลักของส่วนนั้น (บันทึก/เพิ่ม) ไม่ต้องเอาเมาส์ไปกด
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter'||e.isComposing||e.shiftKey||e.ctrlKey||e.altKey||e.metaKey)return;
+  var t=e.target;
+  if(!t||t.tagName!=='INPUT')return;
+  if(/^(checkbox|radio|button|submit|file)$/.test(t.type))return;
+  if(t.classList.contains('srch'))return;                       // ช่องค้นหา ไม่ใช่การบันทึก
+  if(t.id==='draft-name'){e.preventDefault();saveDraft();t.blur();return;}
+  if(t.closest('#auth-gate')){e.preventDefault();submitAuth();return;}
+  var btn=null, ov=t.closest('.overlay.open');
+  if(ov) btn=ov.querySelector('.modal-foot .ibtn-pri');         // popup → ปุ่ม "บันทึก"
+  else{
+    var pane=t.closest('#add-subj,#add-tch-pane,#add-room-pane,#add-class-pane,#add-settings-pane');
+    if(pane) btn=pane.querySelector('.ibtn-pri');               // แผงข้าง → ปุ่ม "+ เพิ่ม..." / "บันทึกการตั้งค่า"
+  }
+  if(btn){e.preventDefault();btn.click();}
 });
 
 // ═══════════════════════════════════════════════
