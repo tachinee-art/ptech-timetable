@@ -972,6 +972,10 @@ function initTT(){
   tt = {};
   RM.forEach(function(r){ tt[r]={}; DY.forEach(function(d){ tt[r][d]={}; }); });
 }
+// ชื่อชั้นแบบย่อสำหรับแสดงผล: ตัด "ปวช" หรือ "ปวช." ด้านหน้าออก เช่น "ปวช.1/1" → "1/1"
+function shortCls(c){return String(c==null?'':c).replace(/^ปวช\.?\s*/,'').replace('ปวล2','4/');}
+// ตัดจุดหลังคำนำหน้าออก ให้เทียบชื่อได้ทั้งแบบมี/ไม่มีจุด เช่น "ปวช.1/1" → "ปวช1/1"
+function normCls(c){return String(c==null?'':c).replace(/^([^\d.]+)\.\s*/,'$1');}
 // เรียงแบบธรรมชาติ: เทียบส่วนที่เป็นตัวเลขเป็น "จำนวน" ไม่ใช่ตัวอักษร
 // เช่น 1/1, 1/2, ... 1/9, 1/10 (ไม่ใช่ 1/1, 1/10, 1/2)
 function natCmp(a,b){
@@ -1154,7 +1158,7 @@ function renderBL(q){
     var chipHtml='';
     var maxShow=2;
     groups.slice(0,maxShow).forEach(function(g){
-      chipHtml+='<span class="group-chip '+(multi?'multi':'single')+'">'+esc(g.replace('\u0e1b\u0e27\u0e0a','').replace('\u0e1b\u0e27\u0e252','4/'))+'</span>';
+      chipHtml+='<span class="group-chip '+(multi?'multi':'single')+'" title="'+esc(g)+'">'+esc(shortCls(g))+'</span>';
     });
     if(groups.length>maxShow)chipHtml+='<span class="group-chip single">+' + (groups.length-maxShow)+'</span>';
     var roomChip=b.room?'<span class="room-chip">'+esc(b.room)+'</span>':'';
@@ -1772,7 +1776,7 @@ function buildGrpGrid(elId, selected){
   var el=document.getElementById(elId), h='';
   CL.forEach(function(cg){
     var isSel=(selected||[]).indexOf(cg)>=0;
-    h+='<button class="grp-btn'+(isSel?' sel':'')+'" onclick="toggleGrp(this,\''+elId+'\',\''+escAttr(cg)+'\')">'+esc(cg.replace('\u0e1b\u0e27\u0e0a','').replace('\u0e1b\u0e27\u0e252','4/'))+'</button>';
+    h+='<button class="grp-btn'+(isSel?' sel':'')+'" data-cg="'+esc(cg)+'" title="'+esc(cg)+'" onclick="toggleGrp(this,\''+elId+'\',\''+escAttr(cg)+'\')">'+esc(shortCls(cg))+'</button>';
   });
   el.innerHTML=h;
 }
@@ -1780,10 +1784,9 @@ function toggleGrp(btn,elId,cg){btn.classList.toggle('sel');}
 function getSelGrps(elId){
   var btns=document.querySelectorAll('#'+elId+' .grp-btn.sel'), grps=[];
   btns.forEach(function(b){
-    // Map back from short to full
-    var txt=b.textContent;
-    var full=CL.find(function(c){return c.replace('\u0e1b\u0e27\u0e0a','').replace('\u0e1b\u0e27\u0e252','4/')==txt;});
-    if(full)grps.push(full);
+    // \u0e2d\u0e48\u0e32\u0e19\u0e0a\u0e37\u0e48\u0e2d\u0e0a\u0e31\u0e49\u0e19\u0e40\u0e15\u0e47\u0e21\u0e08\u0e32\u0e01 data-cg (\u0e44\u0e21\u0e48\u0e15\u0e49\u0e2d\u0e07\u0e41\u0e1b\u0e25\u0e07\u0e0a\u0e37\u0e48\u0e2d\u0e22\u0e48\u0e2d\u0e01\u0e25\u0e31\u0e1a) \u2014 \u0e21\u0e35\u0e2a\u0e33\u0e23\u0e2d\u0e07\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e1b\u0e38\u0e48\u0e21\u0e41\u0e1a\u0e1a\u0e40\u0e01\u0e48\u0e32
+    var full=b.getAttribute('data-cg')||CL.find(function(c){return shortCls(c)===b.textContent;});
+    if(full&&CL.indexOf(full)>=0)grps.push(full);
   });
   return grps;
 }
@@ -3705,7 +3708,7 @@ function pmBuild(){
   var g=document.getElementById('PM-grid');
   g.innerHTML='';
   opts.forEach(function(o){
-    var lbl=o.replace('\u0e1b\u0e27\u0e0a1/','1/').replace('\u0e1b\u0e27\u0e0a2/','2/').replace('\u0e1b\u0e274/','4/');
+    var lbl=shortCls(o);
     var b=document.createElement('button');
     b.textContent=lbl;b.title=o;
     b.style.cssText='font-size:11px;padding:5px 3px;border-radius:5px;border:1.5px solid #2563eb;cursor:pointer;font-family:inherit;background:#eff6ff;color:#1d4ed8;font-weight:600;width:100%;box-sizing:border-box';
@@ -3730,7 +3733,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 function pmSel(g){
   document.querySelectorAll('#PM-grid button').forEach(function(b){
-    var v=b._val||b.title;
+    var v=normCls(b._val||b.title); // เทียบแบบไม่สนจุด: ปวช.1/1 กับ ปวช1/1 ถือว่าเหมือนกัน
     var on=(g==='all')||(g==='p1'&&v.startsWith('\u0e1b\u0e27\u0e0a1'))||(g==='p2'&&v.startsWith('\u0e1b\u0e27\u0e0a2'))||(g==='s4'&&v.startsWith('\u0e1b\u0e274'));
     var off=g==='none';
     if(g==='all'||g==='none'||on||off){
