@@ -618,6 +618,7 @@ input,select,textarea{font-family:inherit}
         </select></div>
         <button class="ibtn ibtn-pri" style="width:100%;margin-top:6px" onclick="addBlock()">+ เพิ่มรายวิชา</button>
         <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:10px">
+          <label class="ibtn" style="width:100%;display:flex;justify-content:center;cursor:pointer;margin-bottom:6px;box-sizing:border-box" title="นำเข้ารายวิชาจากไฟล์ Excel (แบบฟอร์มโหลดครูผู้สอน)">📥 นำเข้ารายวิชาจาก Excel<input type="file" class="file-input" accept=".xlsx,.xls" onchange="importSubjectsExcel(this)"></label>
           <button class="ibtn" style="width:100%;color:var(--red);border-color:var(--red-mid)" onclick="clearAllSubjects()" title="ลบรายวิชาทั้งหมดของเทอมนี้ (มีผลทุก draft ในเทอม)">🗑 ลบรายวิชาทั้งหมด</button>
         </div>
       </div>
@@ -800,6 +801,19 @@ input,select,textarea{font-family:inherit}
     <div class="modal-foot">
       <button class="ibtn" onclick="closeQuickEditModal()">ยกเลิก</button>
       <button class="ibtn ibtn-pri" onclick="saveQuickEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT SUBJECTS MODAL — พรีวิวก่อนนำเข้ารายวิชาจาก Excel -->
+<div class="overlay" id="import-modal">
+  <div class="modal modal-lg">
+    <h2>📥 นำเข้ารายวิชาจาก Excel</h2>
+    <div class="modal-sub" id="im-sub"></div>
+    <div class="modal-body" id="im-body"></div>
+    <div class="modal-foot">
+      <button class="ibtn" onclick="closeImportModal()">ยกเลิก</button>
+      <button class="ibtn ibtn-pri" id="im-go" onclick="applyImportSubjects()">นำเข้า</button>
     </div>
   </div>
 </div>
@@ -1896,6 +1910,186 @@ async function clearAllSubjects(){
   popAddForms();renderBL('');popViewSel();render();
   saveDraft(); // \u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01 draft \u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e41\u0e25\u0e49\u0e27\u0e17\u0e31\u0e19\u0e17\u0e35
   toast('\u0e25\u0e1a\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14\u0e41\u0e25\u0e49\u0e27','ok');
+}
+
+// \u2550\u2550\u2550 IMPORT SUBJECTS FROM EXCEL \u2014 \u0e41\u0e1a\u0e1a\u0e1f\u0e2d\u0e23\u0e4c\u0e21 "\u0e42\u0e2b\u0e25\u0e14\u0e04\u0e23\u0e39\u0e1c\u0e39\u0e49\u0e2a\u0e2d\u0e19" \u2550\u2550\u2550
+// \u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19: "1/3, 1/4" = \u0e41\u0e22\u0e01\u0e01\u0e25\u0e38\u0e48\u0e21\u0e40\u0e23\u0e35\u0e22\u0e19 (\u0e04\u0e19\u0e25\u0e30\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23), "3/2+3/3" = \u0e40\u0e23\u0e35\u0e22\u0e19\u0e23\u0e27\u0e21\u0e01\u0e25\u0e38\u0e48\u0e21\u0e40\u0e14\u0e35\u0e22\u0e27
+var _importPlan=null;
+function nrmTxt(s){return String(s==null?'':s).replace(/\s+/g,' ').trim();}
+function nrmTch(s){return nrmTxt(s).replace(/^\u0e2d\.\s*/,'').replace(/\s+/g,'');}           // \u0e04\u0e35\u0e22\u0e4c\u0e08\u0e31\u0e1a\u0e04\u0e39\u0e48\u0e0a\u0e37\u0e48\u0e2d\u0e04\u0e23\u0e39 (\u0e44\u0e21\u0e48\u0e2a\u0e19 "\u0e2d." \u0e41\u0e25\u0e30\u0e0a\u0e48\u0e2d\u0e07\u0e27\u0e48\u0e32\u0e07)
+function clsDigits(c){var m=String(c).replace(/\s+/g,'').match(/\d.*$/);return m?m[0]:'';} // "\u0e1b\u0e27\u0e0a.1/1"\u2192"1/1", "\u0e1b\u0e27\u0e2a.4/6+5/4"\u2192"4/6+5/4"
+function setKey(d){return d.split('+').sort(natCmp).join('+');}
+function importSubjectsExcel(input){
+  var file=input.files&&input.files[0]; input.value='';
+  if(!file)return;
+  if(typeof XLSX==='undefined'){toast('\u0e42\u0e2b\u0e25\u0e14\u0e15\u0e31\u0e27\u0e2d\u0e48\u0e32\u0e19 Excel \u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08 \u0e25\u0e2d\u0e07\u0e23\u0e35\u0e40\u0e1f\u0e23\u0e0a\u0e2b\u0e19\u0e49\u0e32\u0e40\u0e27\u0e47\u0e1a','err');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var plan=buildImportPlan(XLSX.read(new Uint8Array(e.target.result),{type:'array'}));
+      if(!plan){toast('\u0e44\u0e21\u0e48\u0e1e\u0e1a\u0e0a\u0e35\u0e15\u0e17\u0e35\u0e48\u0e21\u0e35\u0e04\u0e2d\u0e25\u0e31\u0e21\u0e19\u0e4c "\u0e0a\u0e37\u0e48\u0e2d\u0e27\u0e34\u0e0a\u0e32" \u0e41\u0e25\u0e30 "\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19"','err');return;}
+      _importPlan=plan; showImportPreview(plan);
+    }catch(err){toast('\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e1f\u0e25\u0e4c\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08: '+err.message,'err');}
+  };
+  reader.readAsArrayBuffer(file);
+}
+function buildImportPlan(wb){
+  var sheet=null,hdr=-1,rows=null;
+  wb.SheetNames.some(function(n){
+    // raw:false = \u0e2d\u0e48\u0e32\u0e19 "\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e17\u0e35\u0e48\u0e41\u0e2a\u0e14\u0e07" \u2014 \u0e01\u0e31\u0e19\u0e0a\u0e48\u0e2d\u0e07\u0e2d\u0e22\u0e48\u0e32\u0e07 2/1 \u0e17\u0e35\u0e48 Excel \u0e41\u0e1b\u0e25\u0e07\u0e40\u0e1b\u0e47\u0e19\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48
+    var r=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',blankrows:true,raw:false});
+    for(var i=0;i<Math.min(r.length,10);i++){
+      var j=r[i].map(function(x){return String(x).replace(/\s+/g,'');}).join('|');
+      if(j.indexOf('\u0e0a\u0e37\u0e48\u0e2d\u0e27\u0e34\u0e0a\u0e32')>=0&&j.indexOf('\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19')>=0){sheet=n;hdr=i;rows=r;return true;}
+    }
+    return false;
+  });
+  if(!sheet)return null;
+  var H=rows[hdr].map(function(x){return String(x).replace(/\s+/g,'');});
+  function col(test){for(var k=0;k<H.length;k++)if(test(H[k]))return k;return -1;}
+  var C={
+    fac:col(function(h){return h.indexOf('\u0e04\u0e13\u0e30')===0;}),
+    tch:col(function(h){return h.indexOf('\u0e04\u0e23\u0e39')>=0;}),
+    subj:col(function(h){return h==='\u0e0a\u0e37\u0e48\u0e2d\u0e27\u0e34\u0e0a\u0e32';}),
+    per:col(function(h){return h==='\u0e08\u0e33\u0e19\u0e27\u0e19\u0e04\u0e32\u0e1a';}),
+    lvl:col(function(h){return h==='\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19';}),
+    room:col(function(h){return h==='\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19';}),
+    only:col(function(h){return h.indexOf('\u0e2b\u0e49\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19')>=0;})
+  };
+  var plan={sheet:sheet,blocks:[],newClasses:[],newTeachers:[],noRoom:[],skipped:0,rowsRead:0,dateCells:[],badLevels:[],
+            badPeriods:[],noTeacher:[],secMismatch:[],dupes:[]};
+  C.sec=col(function(h){return h==='จำนวนSec';});
+  var ws=wb.Sheets[sheet], rng=XLSX.utils.decode_range(ws['!ref']); // เก็บแถวว่างไว้ (blankrows:true) เพื่อให้เลขแถวตรงกับใน Excel
+  // \u0e14\u0e31\u0e0a\u0e19\u0e35\u0e0a\u0e31\u0e49\u0e19\u0e40\u0e23\u0e35\u0e22\u0e19\u0e40\u0e14\u0e34\u0e21: \u0e0a\u0e31\u0e49\u0e19\u0e40\u0e14\u0e35\u0e48\u0e22\u0e27 ("1/1") / \u0e0a\u0e31\u0e49\u0e19\u0e23\u0e27\u0e21 (\u0e40\u0e17\u0e35\u0e22\u0e1a\u0e41\u0e1a\u0e1a\u0e44\u0e21\u0e48\u0e2a\u0e19\u0e25\u0e33\u0e14\u0e31\u0e1a) / \u0e0a\u0e34\u0e49\u0e19\u0e2a\u0e48\u0e27\u0e19\u0e02\u0e2d\u0e07\u0e0a\u0e31\u0e49\u0e19\u0e23\u0e27\u0e21
+  var single={},combo={},part2combo={};
+  CL.forEach(function(c){
+    var d=clsDigits(c); if(!d)return;
+    if(d.indexOf('+')<0){if(!single[d])single[d]=c;}
+    else{combo[setKey(d)]=c; d.split('+').forEach(function(p){if(!part2combo[p])part2combo[p]=c;});}
+  });
+  function getCls(p){
+    if(single[p])return single[p];
+    if(part2combo[p])return part2combo[p];
+    if(!/^\d+\/\d+$/.test(p))return null;
+    var nm=(parseInt(p,10)>=4?'\u0e1b\u0e27\u0e2a.':'\u0e1b\u0e27\u0e0a.')+p;   // 1\u20133 = \u0e1b\u0e27\u0e0a, 4\u20135 = \u0e1b\u0e27\u0e2a
+    single[p]=nm; plan.newClasses.push(nm);
+    return nm;
+  }
+  var tchByKey={}; TCH.forEach(function(t){tchByKey[nrmTch(t)]=t;});
+  var useAjarn=TCH.length?TCH.filter(function(t){return /^\u0e2d\./.test(t);}).length*2>=TCH.length:true; // \u0e15\u0e32\u0e21\u0e23\u0e39\u0e1b\u0e41\u0e1a\u0e1a\u0e0a\u0e37\u0e48\u0e2d\u0e04\u0e23\u0e39\u0e17\u0e35\u0e48\u0e21\u0e35\u0e2d\u0e22\u0e39\u0e48
+  function getTch(raw){
+    var key=nrmTch(raw); if(!key)return '';
+    if(tchByKey[key])return tchByKey[key];
+    var bare=nrmTxt(raw).replace(/^\u0e2d\.\s*/,''), nm=useAjarn?'\u0e2d.'+bare:bare;
+    tchByKey[key]=nm; plan.newTeachers.push(nm);
+    return nm;
+  }
+  var roomSet={}; RM.forEach(function(r){roomSet[r]=1;});
+  function pickRoom(only,room){
+    if(only&&roomSet[only])return only;                           // "\u0e2b\u0e49\u0e2d\u0e07\u0e19\u0e35\u0e49\u0e40\u0e17\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19" \u0e21\u0e32\u0e01\u0e48\u0e2d\u0e19
+    var toks=(room||'').split(/[,\s+()]+/).filter(Boolean);
+    for(var i=0;i<toks.length;i++)if(roomSet[toks[i]])return toks[i];
+    return '';
+  }
+  var FAC=['\u0e2d\u0e38\u0e15\u0e2a\u0e32\u0e2b\u0e01\u0e23\u0e23\u0e21','\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23\u0e18\u0e38\u0e23\u0e01\u0e34\u0e08','\u0e40\u0e17\u0e04\u0e42\u0e19\u0e42\u0e25\u0e22\u0e35\u0e2a\u0e32\u0e23\u0e2a\u0e19\u0e40\u0e17\u0e28'];
+  var fac='',tch='',stamp=Date.now().toString(36),n=0,seen={};
+  for(var i=hdr+1;i<rows.length;i++){
+    var r=rows[i];
+    var f=C.fac>=0?nrmTxt(r[C.fac]):''; if(f)fac=f.replace(/^\u0e04\u0e13\u0e30/,'');
+    var t=C.tch>=0?nrmTxt(r[C.tch]):''; if(t&&isNaN(Number(t)))tch=t;   // \u0e41\u0e16\u0e27\u0e17\u0e35\u0e48\u0e40\u0e1b\u0e47\u0e19\u0e15\u0e31\u0e27\u0e40\u0e25\u0e02 = \u0e22\u0e2d\u0e14\u0e04\u0e32\u0e1a\u0e23\u0e27\u0e21\u0e02\u0e2d\u0e07\u0e04\u0e23\u0e39
+    var subj=nrmTxt(r[C.subj]); if(!subj)continue;                         // \u0e41\u0e16\u0e27\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38/\u0e27\u0e48\u0e32\u0e07
+    plan.rowsRead++;
+    var only=C.only>=0?nrmTxt(r[C.only]):'', roomTxt=C.room>=0?nrmTxt(r[C.room]):'';
+    var room=pickRoom(only,roomTxt);
+    if(!room&&(only||roomTxt))plan.noRoom.push(subj+' ('+(only||roomTxt)+')');
+    var teacher=getTch(tch), perTxt=nrmTxt(r[C.per]), per=parseInt(perTxt,10)||1,faculty=FAC.indexOf(fac)>=0?fac:'\u0e2d\u0e37\u0e48\u0e19\u0e46';
+    var lvlTxt=String(r[C.lvl]||'').replace(/\s+/g,'');
+    // ตรวจเพิ่ม: คาบไม่ใช่ตัวเลข / ไม่มีครู / Sec ไม่ตรงกับจำนวนกลุ่มที่เขียนไว้
+    if(!/^\d+$/.test(perTxt)||per<1)plan.badPeriods.push(subj+' ("'+(perTxt||'ว่าง')+'") → ใช้ 1 คาบ');
+    if(!teacher)plan.noTeacher.push(subj);
+    var secTxt=C.sec>=0?nrmTxt(r[C.sec]):'', nSec=lvlTxt.split(',').filter(Boolean).length;
+    if(/^\d+$/.test(secTxt)&&nSec&&parseInt(secTxt,10)!==nSec)plan.secMismatch.push(subj+' — Sec '+secTxt+' แต่ระดับชั้นมี '+nSec+' กลุ่ม ('+lvlTxt+')');
+    // \u0e0a\u0e48\u0e2d\u0e07\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48 Excel \u0e40\u0e01\u0e47\u0e1a\u0e40\u0e1b\u0e47\u0e19 "\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48/\u0e15\u0e31\u0e27\u0e40\u0e25\u0e02" (\u0e40\u0e0a\u0e48\u0e19 \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2/1 \u0e41\u0e25\u0e49\u0e27\u0e01\u0e25\u0e32\u0e22\u0e40\u0e1b\u0e47\u0e19 46054) \u2014 \u0e41\u0e08\u0e49\u0e07\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e27\u0e08\u0e43\u0e19\u0e1e\u0e23\u0e35\u0e27\u0e34\u0e27
+    var lc=ws[XLSX.utils.encode_cell({r:rng.s.r+i,c:rng.s.c+C.lvl})];
+    if(lc&&(lc.t==='n'||lc.t==='d'))plan.dateCells.push(subj+' \u2192 '+(lvlTxt||'(\u0e27\u0e48\u0e32\u0e07)'));
+    lvlTxt.split(',').forEach(function(sec){
+      if(!sec){plan.skipped++;return;}
+      var groups=combo[setKey(sec)]?[combo[setKey(sec)]]:[], bad=[];
+      if(!groups.length)sec.split('+').forEach(function(p){var c=getCls(p);if(!c){bad.push(p);return;}if(groups.indexOf(c)<0)groups.push(c);});
+      if(bad.length)plan.badLevels.push(subj+' \u2192 "'+bad.join('+')+'"'+(groups.length?' (\u0e02\u0e49\u0e32\u0e21\u0e40\u0e09\u0e1e\u0e32\u0e30\u0e2a\u0e48\u0e27\u0e19\u0e19\u0e35\u0e49)':' (\u0e02\u0e49\u0e32\u0e21\u0e17\u0e31\u0e49\u0e07\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23)'));
+      if(!groups.length){plan.skipped++;return;}
+      var dk=teacher+'|'+subj+'|'+groups.slice().sort().join('+');   // ครู+วิชา+กลุ่มเดียวกัน = รายการซ้ำ
+      if(seen[dk])plan.dupes.push(subj+' · '+(teacher||'ไม่มีครู')+' · '+groups.map(shortCls).join('+'));
+      seen[dk]=1;
+      n++;
+      plan.blocks.push({id:'m'+stamp+'_'+n,subject:subj,teacher:teacher,room:room,groups:groups,classGroup:groups[0],periodsPerWeek:per,faculty:faculty});
+    });
+  }
+  return plan;
+}
+function showImportPreview(p){
+  var th='padding:4px 6px;text-align:left;position:sticky;top:0;background:var(--card)', td='padding:3px 6px';
+  function list(title,arr,color){
+    if(!arr.length)return '';
+    return '<div class="section-head" style="margin:6px 0 4px;flex-shrink:0">'+title+' ('+arr.length+')</div>'
+      +'<div style="font-size:12px;color:'+color+';line-height:1.7;max-height:96px;overflow:auto;flex-shrink:0">'+arr.map(esc).join(', ')+'</div>';
+  }
+  var h='<div class="note" style="border-left-color:var(--amber)">\u26a0 \u0e08\u0e30<b>\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48</b>\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e40\u0e14\u0e34\u0e21\u0e02\u0e2d\u0e07\u0e40\u0e17\u0e2d\u0e21\u0e19\u0e35\u0e49\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14 ('+blocks.length+' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23) \u0e41\u0e25\u0e30\u0e25\u0e49\u0e32\u0e07\u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07</div>';
+  if(p.badLevels.length)h+='<div class="note" style="border-left-color:var(--red)">\u274c \u0e2d\u0e48\u0e32\u0e19\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49 '+p.badLevels.length+' \u0e08\u0e38\u0e14 \u2014 \u0e41\u0e01\u0e49\u0e43\u0e19\u0e44\u0e1f\u0e25\u0e4c Excel \u0e43\u0e2b\u0e49\u0e40\u0e1b\u0e47\u0e19\u0e23\u0e39\u0e1b\u0e41\u0e1a\u0e1a 1/1 \u0e2b\u0e23\u0e37\u0e2d 1/1+1/2 \u0e41\u0e25\u0e49\u0e27\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32\u0e43\u0e2b\u0e21\u0e48</div>'
+    +list('\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49',p.badLevels,'var(--red)');
+  if(p.dateCells.length)h+='<div class="note" style="border-left-color:var(--amber)">\ud83d\udcc5 \u0e21\u0e35 '+p.dateCells.length+' \u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48 Excel \u0e40\u0e01\u0e47\u0e1a\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19\u0e40\u0e1b\u0e47\u0e19 "\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48" \u0e23\u0e30\u0e1a\u0e1a\u0e2d\u0e48\u0e32\u0e19\u0e08\u0e32\u0e01\u0e02\u0e49\u0e2d\u0e04\u0e27\u0e32\u0e21\u0e17\u0e35\u0e48\u0e41\u0e2a\u0e14\u0e07\u0e43\u0e19 Excel \u2014 \u0e42\u0e1b\u0e23\u0e14\u0e15\u0e23\u0e27\u0e08\u0e27\u0e48\u0e32\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e43\u0e19\u0e44\u0e1f\u0e25\u0e4c</div>'
+    +list('\u0e0a\u0e48\u0e2d\u0e07\u0e17\u0e35\u0e48 Excel \u0e41\u0e1b\u0e25\u0e07\u0e40\u0e1b\u0e47\u0e19\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48 (\u0e27\u0e34\u0e0a\u0e32 \u2192 \u0e04\u0e48\u0e32\u0e17\u0e35\u0e48\u0e2d\u0e48\u0e32\u0e19\u0e44\u0e14\u0e49)',p.dateCells,'var(--amber)');
+  h+=list('\u0e0a\u0e31\u0e49\u0e19\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48\u0e08\u0e30\u0e2a\u0e23\u0e49\u0e32\u0e07\u0e43\u0e2b\u0e21\u0e48',p.newClasses,'var(--amber)');
+  h+=list('\u0e04\u0e23\u0e39\u0e17\u0e35\u0e48\u0e08\u0e30\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e43\u0e2b\u0e21\u0e48',p.newTeachers,'var(--amber)');
+  h+=list('\u0e2b\u0e49\u0e2d\u0e07\u0e17\u0e35\u0e48\u0e2b\u0e32\u0e43\u0e19\u0e23\u0e30\u0e1a\u0e1a\u0e44\u0e21\u0e48\u0e40\u0e08\u0e2d \u2014 \u0e08\u0e30\u0e40\u0e27\u0e49\u0e19\u0e27\u0e48\u0e32\u0e07\u0e44\u0e27\u0e49\u0e43\u0e2b\u0e49\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e40\u0e2d\u0e07',p.noRoom,'var(--ink3)');
+  var nWarn=p.badPeriods.length+p.noTeacher.length+p.secMismatch.length+p.dupes.length;
+  if(nWarn)h+='<div class="note" style="border-left-color:var(--amber);flex-shrink:0">🔎 พบจุดที่ควรตรวจในไฟล์ '+nWarn+' จุด — นำเข้าได้ แต่แนะนำให้แก้ใน Excel ก่อน</div>';
+  h+=list('จำนวนคาบว่าง/ไม่ใช่ตัวเลข',p.badPeriods,'var(--amber)');
+  h+=list('วิชาที่ไม่มีครูผู้สอน',p.noTeacher,'var(--amber)');
+  h+=list('จำนวน Sec ไม่ตรงกับกลุ่มในระดับชั้น',p.secMismatch,'var(--amber)');
+  h+=list('รายการซ้ำ (ครู+วิชา+กลุ่มเดียวกัน) — จะได้ 2 รายการ',p.dupes,'var(--amber)');
+  if(p.skipped)h+='<div class="note">\u0e02\u0e49\u0e32\u0e21 '+p.skipped+' \u0e01\u0e25\u0e38\u0e48\u0e21\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19</div>';
+  h+='<div class="section-head" style="margin:6px 0 4px;flex-shrink:0">\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e17\u0e35\u0e48\u0e08\u0e30\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32</div>'
+    +'<div style="max-height:260px;min-height:120px;overflow:auto;border:1px solid var(--line);border-radius:var(--r);flex-shrink:0">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="'+th+'">\u0e27\u0e34\u0e0a\u0e32</th><th style="'+th+'">\u0e04\u0e23\u0e39</th><th style="'+th+'">\u0e01\u0e25\u0e38\u0e48\u0e21\u0e40\u0e23\u0e35\u0e22\u0e19</th><th style="'+th+';text-align:center">\u0e04\u0e32\u0e1a</th><th style="'+th+'">\u0e2b\u0e49\u0e2d\u0e07</th></tr>';
+  p.blocks.forEach(function(b){
+    h+='<tr style="border-top:1px solid var(--line2)"><td style="'+td+'">'+esc(b.subject)+'</td><td style="'+td+'">'+esc(b.teacher)+'</td>'
+      +'<td style="'+td+'">'+esc(b.groups.map(shortCls).join(' + '))+'</td><td style="'+td+';text-align:center">'+b.periodsPerWeek+'</td>'
+      +'<td style="'+td+';color:'+(b.room?'inherit':'var(--ink3)')+'">'+esc(b.room||'\u2014')+'</td></tr>';
+  });
+  h+='</table></div>';
+  document.getElementById('im-sub').textContent='\u0e0a\u0e35\u0e15 "'+p.sheet.trim()+'" \u00b7 '+p.rowsRead+' \u0e27\u0e34\u0e0a\u0e32 \u2192 '+p.blocks.length+' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23 (\u0e41\u0e22\u0e01\u0e15\u0e32\u0e21\u0e01\u0e25\u0e38\u0e48\u0e21\u0e40\u0e23\u0e35\u0e22\u0e19)';
+  document.getElementById('im-body').innerHTML=h;
+  document.getElementById('im-go').textContent='\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32 '+p.blocks.length+' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23 (\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14)';
+  document.getElementById('import-modal').classList.add('open');
+}
+function closeImportModal(){document.getElementById('import-modal').classList.remove('open');_importPlan=null;}
+async function applyImportSubjects(){
+  var p=_importPlan; if(!p)return;
+  if(!p.blocks.length){toast('\u0e44\u0e21\u0e48\u0e21\u0e35\u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e43\u0e2b\u0e49\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32','warn');return;}
+  if(!confirm('\u0e22\u0e37\u0e19\u0e22\u0e31\u0e19\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32 '+p.blocks.length+' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23?\n\n\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e40\u0e14\u0e34\u0e21\u0e02\u0e2d\u0e07\u0e40\u0e17\u0e2d\u0e21\u0e19\u0e35\u0e49\u0e41\u0e25\u0e30\u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\u0e08\u0e30\u0e16\u0e39\u0e01\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u0e17\u0e31\u0e49\u0e07\u0e2b\u0e21\u0e14'))return;
+  // \u0e0a\u0e31\u0e49\u0e19\u0e40\u0e23\u0e35\u0e22\u0e19/\u0e04\u0e23\u0e39\u0e43\u0e2b\u0e21\u0e48 \u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e17\u0e2d\u0e21
+  p.newClasses.forEach(function(c){if(CL.indexOf(c)<0){CL.push(c);if(STUDENTS[c]==null)STUDENTS[c]=0;}});
+  CL.sort(natCmp);
+  p.newTeachers.forEach(function(t){if(TCH.indexOf(t)<0)TCH.push(t);});
+  TCH.sort(); TEACHERS_BASE=TCH.slice();
+  // \u0e15\u0e31\u0e49\u0e07\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e08\u0e32\u0e01 Excel \u0e40\u0e1b\u0e47\u0e19\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e10\u0e32\u0e19\u0e02\u0e2d\u0e07\u0e40\u0e17\u0e2d\u0e21 (\u0e17\u0e38\u0e01 draft \u0e43\u0e19\u0e40\u0e17\u0e2d\u0e21\u0e40\u0e2b\u0e47\u0e19\u0e40\u0e2b\u0e21\u0e37\u0e2d\u0e19\u0e01\u0e31\u0e19)
+  BLOCKS_DATA=p.blocks.map(function(b){return Object.assign({},b,{groups:b.groups.slice()});});
+  blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups.slice()});});
+  DATA_VERSION=BLOCKS_DATA.length+'_'+(BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
+  recalcNextId();
+  initTT(); // \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e2d\u0e49\u0e32\u0e07\u0e23\u0e32\u0e22\u0e27\u0e34\u0e0a\u0e32\u0e40\u0e14\u0e34\u0e21 \u2014 \u0e25\u0e49\u0e32\u0e07\u0e2d\u0e2d\u0e01
+  closeImportModal();
+  if(_currentTermId){
+    try{
+      var res=await supabase.from('terms').update({blocks_data:BLOCKS_DATA,classes:CL,students:STUDENTS,teachers:TCH,settings:buildSettingsPayload()}).eq('id',_currentTermId);
+      if(res&&res.error)throw res.error;
+    }catch(e){toast('\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e17\u0e2d\u0e21\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08 (\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e22\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48\u0e43\u0e19\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07): '+e.message,'err');}
+  }
+  setDirty(true);
+  popAddForms();popViewSel();render();
+  saveDraft();
+  toast('\u0e19\u0e33\u0e40\u0e02\u0e49\u0e32 '+p.blocks.length+' \u0e23\u0e32\u0e22\u0e01\u0e32\u0e23\u0e41\u0e25\u0e49\u0e27','ok');
 }
 function addTeacher(){
   var name=document.getElementById('new-tch').value.trim();
@@ -3214,7 +3408,7 @@ document.addEventListener('keydown',function(e){
 // ═══════════════════════════════════════════════
 // CLOSE OVERLAYS ON BG CLICK
 // ═══════════════════════════════════════════════
-['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal','ent-edit-modal'].forEach(function(id){
+['room-modal','edit-modal','pick-modal','drafts-modal','terms-modal','quick-edit-modal','ent-edit-modal','import-modal'].forEach(function(id){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 });
 
