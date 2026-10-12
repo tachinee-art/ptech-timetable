@@ -499,8 +499,6 @@ input,select,textarea{font-family:inherit}
     <button class="tbtn tbtn-ghost" id="theme-toggle" onclick="toggleTheme()" title="สลับโหมดมืด/สว่าง">🌙</button>
   </div>
   <div class="nav-quick">
-    <button style="background:var(--blue)" onclick="saveDraft()" title="Ctrl+S">💾 บันทึก</button>
-    <button style="background:#7c3aed" onclick="openPrintModal()">📄 พิมพ์</button>
     <button style="background:#059669" onclick="togglePalette()">📋 รายวิชา</button>
   </div>
   <div class="nav-groups">
@@ -565,8 +563,6 @@ input,select,textarea{font-family:inherit}
     <input class="draft-name" id="draft-name" type="text" value="ตาราง ภาค 1/2568" placeholder="ชื่อ draft...">
     <button class="tbtn tbtn-green" onclick="saveDraft()" title="Ctrl+S">💾 บันทึก</button>
     <button class="tbtn tbtn-ghost" onclick="openDraftsMgr()" title="จัดการ Draft">📂</button>
-    <button class="tbtn tbtn-ghost" onclick="exportDraftFile()" title="ส่งออกไฟล์ draft เพื่อสำรองข้อมูล">⬇</button>
-    <label class="tbtn tbtn-ghost" style="cursor:pointer" title="นำเข้าไฟล์ draft">⬆<input type="file" class="file-input" id="import-file" accept=".json" onchange="importDraftFile(this)"></label>
     <div class="sync-pill" id="sync-pill">
       <div class="sync-dot" id="sync-dot"></div>
       <span id="sync-label">โหลด...</span>
@@ -711,7 +707,7 @@ input,select,textarea{font-family:inherit}
       <span class="chip chip-red" id="chip-conf" style="display:none"></span>
       <span class="chip chip-amber" id="chip-warn" style="display:none"></span>
       <span class="chip chip-green" id="chip-sched"></span>
-      <button class="ibtn" onclick="openConflictPanel()">⚠ ดูปัญหา</button><div style="display:flex;gap:4px"><button class="ibtn" onclick="openPrintModal()" style="background:var(--red);color:#fff;border-color:var(--red)">📄 PDF</button><button class="ibtn" onclick="openPrintModal()" style="background:#7c3aed;color:#fff;border-color:#7c3aed" title="พิมพ์ทุกหน้า">⬛ ทั้งหมด</button></div>
+      <button class="ibtn" onclick="openConflictPanel()">⚠ ดูปัญหา</button><div style="display:flex;gap:4px"><button class="ibtn" onclick="openPrintModal()" style="background:var(--red);color:#fff;border-color:var(--red)">📄 PDF</button></div>
     </div>
   </div>
   <div class="grid-wrap"><div class="print-header" id="print-header"><div><h1 id="print-title">ตารางเรียน PTECH</h1></div><div><p id="print-sub" style="font-size:9pt;color:#444;text-align:right"></p><p id="print-date" style="font-size:8pt;color:#888;text-align:right"></p></div></div><table class="tt" id="tt"></table></div>
