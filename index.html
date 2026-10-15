@@ -600,6 +600,7 @@ input,select,textarea{font-family:inherit}
       <!-- add subject -->
       <div id="add-subj">
         <div class="fld"><label>ชื่อวิชา</label><input type="text" id="as" placeholder="ชื่อวิชา..."></div>
+        <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;margin:2px 0 8px;cursor:pointer"><input type="checkbox" id="as-self" onchange="syncSelfFields('as-self','at-sel','ar-sel')"> 📖 เรียนด้วยตนเอง (ไม่ใช้ครู/ห้อง)</label>
         <div class="fld"><label>ครูผู้สอน</label><select id="at-sel"></select></div>
         <div class="fld"><label>ห้องเรียนตั้งต้น</label><select id="ar-sel"></select></div>
         <div class="fld"><label>กลุ่มห้องเรียน (เลือกได้หลายห้อง)</label>
@@ -743,6 +744,7 @@ input,select,textarea{font-family:inherit}
     <input type="hidden" id="edit-id">
     <div class="modal-body">
       <div class="fld"><label>ชื่อวิชา</label><input type="text" id="edit-subj"></div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" id="edit-self" onchange="syncSelfFields('edit-self','edit-tch','edit-room-sel')"> 📖 เรียนด้วยตนเอง (ไม่ใช้ครู/ห้อง)</label>
       <div class="row2">
         <div class="fld"><label>ครูผู้สอน</label><select id="edit-tch"></select></div>
         <div class="fld"><label>ห้องตั้งต้น</label><select id="edit-room-sel"></select></div>
@@ -982,6 +984,15 @@ function initTT(){
   tt = {};
   RM.forEach(function(r){ tt[r]={}; DY.forEach(function(d){ tt[r][d]={}; }); });
 }
+// ═══ วิชาเรียนด้วยตนเอง (Self Learning) — ไม่มีครู ไม่ใช้ห้อง ═══
+// ตารางเก็บข้อมูลผูกกับห้อง จึงเก็บคาบของวิชานี้ไว้ใน "ห้องเสมือน" แยกตามรายวิชา (ไม่แสดงในรายชื่อห้อง)
+var SELF_KEY='§self:';
+function isSelfRoom(r){return String(r==null?'':r).indexOf(SELF_KEY)===0;}
+function selfRoomFor(b){return SELF_KEY+b.id;}
+function isSelfStudy(b){return !!b&&(b.selfStudy===true||/^self\s*-?\s*learning$/i.test(String(b.teacher||'').trim()));}
+function hasRealTeacher(b){return !!(b&&b.teacher)&&!isSelfStudy(b);}   // ครูว่าง/เรียนเอง ไม่นับเป็นครูซ้อน
+function ttRooms(){var a=RM.slice();for(var r in tt)if(isSelfRoom(r))a.push(r);return a;} // ห้องจริง + ห้องเสมือน
+function roomLabel(r){return isSelfRoom(r)?'เรียนด้วยตนเอง':r;}
 // ชื่อชั้นแบบย่อสำหรับแสดงผล: ตัด "ปวช" หรือ "ปวช." ด้านหน้าออก เช่น "ปวช.1/1" → "1/1"
 function shortCls(c){return String(c==null?'':c).replace(/^ปวช\.?\s*/,'').replace('ปวล2','4/');}
 // ตัดจุดหลังคำนำหน้าออก ให้เทียบชื่อได้ทั้งแบบมี/ไม่มีจุด เช่น "ปวช.1/1" → "ปวช1/1"
@@ -1089,14 +1100,14 @@ function fC(f){
 }
 function cntSched(bid){
   var n=0;
-  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(e&&e.blockId===bid)n++; }); }); });
+  ttRooms().forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(e&&e.blockId===bid)n++; }); }); });
   return n;
 }
 function isFull(b){ return cntSched(b.id)>=b.periodsPerWeek; }
 // นับคาบที่จัดไว้แล้ว — ใช้เตือนก่อนลบครู/ห้อง/ชั้นเรียนที่ยังมีการใช้งาน
 function countTeacherPeriods(name){
   var n=0;
-  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(!e)return; var b=gB(e.blockId); if(b&&b.teacher===name)n++; }); }); });
+  ttRooms().forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(!e)return; var b=gB(e.blockId); if(b&&b.teacher===name)n++; }); }); });
   return n;
 }
 function countRoomPeriods(room){
@@ -1106,7 +1117,7 @@ function countRoomPeriods(room){
 }
 function countClassPeriods(cg){
   var n=0;
-  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(e&&(e.groups||[]).indexOf(cg)>=0)n++; }); }); });
+  ttRooms().forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){ var e=gE(r,d,p.id); if(e&&(e.groups||[]).indexOf(cg)>=0)n++; }); }); });
   return n;
 }
 
@@ -1115,13 +1126,13 @@ function countClassPeriods(cg){
 // ═══════════════════════════════════════════════
 function getConflicts(){
   var confs=[], teacherSlots={}, classSlots={}, roomSlots={};
-  RM.forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){
+  ttRooms().forEach(function(r){ DY.forEach(function(d){ PD.forEach(function(p){
     var e=gE(r,d,p.id); if(!e)return;
     var b=gB(e.blockId); if(!b)return;
     // Teacher double-booking
-    var tk=b.teacher+'|'+d+'|'+p.id;
+    if(hasRealTeacher(b)){ var tk=b.teacher+"|"+d+"|"+p.id;
     if(!teacherSlots[tk])teacherSlots[tk]=[];
-    teacherSlots[tk].push({room:r,b:b});
+    teacherSlots[tk].push({room:r,b:b}); }
     // Room double-booking (same room, same slot)
     var rk=r+'|'+d+'|'+p.id;
     if(!roomSlots[rk])roomSlots[rk]=[];
@@ -1138,7 +1149,7 @@ function getConflicts(){
     if(kv[1].length>1){var p=kv[0].split('|');confs.push({type:'\u0e04\u0e23\u0e39\u0e0b\u0e49\u0e2d\u0e19',who:kv[1][0].b.teacher,day:p[1],period:+p[2],rooms:kv[1].map(function(x){return x.room;})});}
   });
   Object.entries(classSlots).forEach(function(kv){
-    if(kv[1].length>1){var p=kv[0].split('|');confs.push({type:'\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19\u0e0a\u0e19',who:p[0],day:p[1],period:+p[2],rooms:kv[1].map(function(x){return x.room;})});}
+    if(kv[1].length>1){var p=kv[0].split('|');confs.push({type:'\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19\u0e0a\u0e19',who:p[0],day:p[1],period:+p[2],rooms:kv[1].map(function(x){return roomLabel(x.room);})});}
   });
   return confs;
 }
@@ -1178,7 +1189,7 @@ function renderBL(q){
       +'<div class="bcard-body">'
       +'<div class="bcard-name">'+esc(b.subject)+'</div>'
       +'<div class="bcard-row">'+chipHtml+roomChip
-        +'<span class="bcard-teacher">'+esc(b.teacher.substring(0,14))+'</span>'
+        +'<span class="bcard-teacher">'+(isSelfStudy(b)?'📖 เรียนด้วยตนเอง':esc(b.teacher.substring(0,14)))+'</span>'
       +'</div>'
       +'<div class="bcard-progress">'
         +'<div class="sched-bar"><div class="sched-fill'+(full?' full':'')+'" style="width:'+pct+'%"></div></div>'
@@ -1252,14 +1263,16 @@ function renderCE(b,e,room,d,p,showGroup){
   var groups=e.groups||b.groups||[b.classGroup];
   var ns=nSt(groups), cs=capSt(ns,room);
   var capL='';
-  if(ns&&room){
+  if(ns&&room&&!isSelfRoom(room)){
     var col=cs.cls==='cov-over'?'var(--red)':cs.cls==='cov-warn'?'var(--amber)':'var(--green)';
     capL='<div class="ce-cap" style="color:'+col+'">'+ns+(cs.cap?'/'+cs.cap:'')+'\u0e04\u0e19'+(cs.pct>100?' ⚠':'')+'</div>';
   }
   return '<div class="ce '+fC(b.faculty)+' '+cs.cls+'" draggable="true"'
     +' ondragstart="onDS(event,\''+b.id+'\',\''+room+'\',\''+d+'\','+p+')" ondragend="onDE()">'
     +'<div class="ce-sub">'+esc(b.subject)+'</div>'
-    +'<div class="ce-inf">'+esc(b.teacher.substring(0,8))+(room?'<span style="float:right;font-weight:700;color:inherit"> '+esc(room)+'</span>':'')+'</div>'
+    +(isSelfStudy(b)
+      ?'<div class="ce-inf">📖 เรียนด้วยตนเอง</div>'
+      :'<div class="ce-inf">'+esc(b.teacher.substring(0,8))+(room?'<span style="float:right;font-weight:700;color:inherit"> '+esc(room)+'</span>':'')+'</div>')
     +(showGroup?'<div class="ce-grps">'+groups.join(', ')+'</div>':'')
     +capL
     +'<div class="ce-sched">'+(cntSched(b.id)>=b.periodsPerWeek?'\u2713':cntSched(b.id))+'/'+b.periodsPerWeek+'\u0e04\u0e32\u0e1a</div>'
@@ -1312,7 +1325,7 @@ function render(){
         else if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{
           // Show all entries that include this class group
-          RM.forEach(function(r){
+          ttRooms().forEach(function(r){
             var e=gE(r,d,p.id);
             if(e){var b=gB(e.blockId);if(b&&(e.groups||b.groups||[b.classGroup]).indexOf(cg)>=0)h+=renderCE(b,e,r,d,p.id,false);}
           });
@@ -1328,7 +1341,7 @@ function render(){
         h+='>';
         if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{
-          RM.forEach(function(r){
+          ttRooms().forEach(function(r){
             var e=gE(r,d,p.id);
             if(e){var b=gB(e.blockId);if(b&&b.teacher===tch)h+=renderCE(b,e,r,d,p.id,true);}
           });
@@ -1343,7 +1356,7 @@ function render(){
 
   // stats
   var done=0;
-  RM.forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){if(gE(r,d,p.id))done++;});});});
+  ttRooms().forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){if(gE(r,d,p.id))done++;});});});
   var pend=blocks.filter(function(b){return !isFull(b);}).length;
   document.getElementById('sb-sched').innerHTML='\u0e08\u0e31\u0e14\u0e41\u0e25\u0e49\u0e27: <b style="color:#6ee7b7">'+done+'</b> \u0e0a\u0e48\u0e2d\u0e07';
   document.getElementById('sb-pend').innerHTML='\u0e23\u0e2d\u0e08\u0e31\u0e14: <b style="color:#fbbf24">'+pend+'</b> \u0e1a\u0e25\u0e47\u0e2d\u0e01';
@@ -1373,6 +1386,10 @@ function oDrop(e,room,d,p){
   e.preventDefault();e.currentTarget.classList.remove('drop-ok');
   if(!drag)return;
   var b=gB(drag.bid);if(!b)return;
+  if(isSelfStudy(b)){
+    showConflict('วิชาเรียนด้วยตนเอง','• <b>'+esc(b.subject)+'</b> ไม่ต้องใช้ห้องเรียน<br>• ให้ไปวางในมุมมอง <b>"ดูตามชั้น"</b> แทน',null);
+    return;
+  }
   var groups=b.groups||[b.classGroup];
   var mv=e.dataTransfer.getData('mv');
 
@@ -1414,11 +1431,11 @@ function oDrop(e,room,d,p){
 
   // ── ตรวจ 3: ครูสอนซ้อน ──
   var tchConflict=null;
-  for(var ri=0;ri<RM.length;ri++){
-    var ex2=gE(RM[ri],d,p);
+  for(var ri=0,RMS=ttRooms();ri<RMS.length;ri++){
+    var ex2=gE(RMS[ri],d,p);
     if(ex2&&ex2.blockId!==drag.bid){
       var exB2=gB(ex2.blockId);
-      if(exB2&&exB2.teacher===b.teacher){tchConflict={room:RM[ri],block:exB2};break;}
+      if(exB2&&hasRealTeacher(b)&&exB2.teacher===b.teacher){tchConflict={room:RMS[ri],block:exB2};break;}
     }
   }
   if(tchConflict){
@@ -1435,12 +1452,12 @@ function oDrop(e,room,d,p){
 
   // ── ตรวจ 4: ห้องเรียน (ระดับชั้น) ซ้อน ──
   var clsConflict=null;
-  for(var ri=0;ri<RM.length;ri++){
-    var ex3=gE(RM[ri],d,p);
+  for(var ri=0,RMS=ttRooms();ri<RMS.length;ri++){
+    var ex3=gE(RMS[ri],d,p);
     if(ex3&&ex3.blockId!==drag.bid){
       var exGrps=ex3.groups||[];
       var overlap=groups.filter(function(g){return exGrps.indexOf(g)>=0;});
-      if(overlap.length){clsConflict={room:RM[ri],block:gB(ex3.blockId),overlap:overlap};break;}
+      if(overlap.length){clsConflict={room:RMS[ri],block:gB(ex3.blockId),overlap:overlap};break;}
     }
   }
   if(clsConflict){
@@ -1479,9 +1496,9 @@ function oDropClass(e,cg,d,p){
     return;
   }
   var mv=e.dataTransfer.getData('mv');
-  var room=b.room;
+  var room=isSelfStudy(b)?selfRoomFor(b):b.room; // เรียนด้วยตนเอง → ห้องเสมือน ไม่ต้องเลือกห้อง
   // ถ้าไม่มีห้อง ให้เปิด room picker
-  if(!room||!ROOM_CAP[room]){
+  if(!isSelfRoom(room)&&(!room||!ROOM_CAP[room])){
     if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
     _pendingDrop={bid:drag.bid,d:d,p:p,mv:null};
     openRoomPickDrop(drag.bid,d,p);
@@ -1559,7 +1576,7 @@ function cCellClass(cg,d,p){
     return !isFull(b)&&(b.groups||[b.classGroup]).indexOf(cg)>=0;
   });
   // Check if slot already has something for this class
-  var occupied=RM.some(function(r){
+  var occupied=ttRooms().some(function(r){
     var e=gE(r,d,p);
     return e&&(e.groups||[]).indexOf(cg)>=0;
   });
@@ -1584,7 +1601,7 @@ function renderPickListClass(av,q){
     var groups=b.groups||[b.classGroup];
     h+='<div data-bid="'+esc(b.id)+'" class="pick-item" style="padding:8px 10px;border:1.5px solid var(--line);border-radius:6px;cursor:pointer;margin-bottom:3px">'
       +'<div style="font-size:13px;font-weight:600">'+esc(b.subject)+'</div>'
-      +'<div style="font-size:11px;color:var(--ink3)">'+esc(b.teacher)+' | \u0e2b\u0e49\u0e2d\u0e07: '+esc(b.room||'\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38')+'</div>'
+      +'<div style="font-size:11px;color:var(--ink3)">'+(isSelfStudy(b)?'📖 เรียนด้วยตนเอง — ไม่ต้องมีครู/ห้อง':esc(b.teacher)+' | \u0e2b\u0e49\u0e2d\u0e07: '+esc(b.room||'\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38'))+'</div>'
       +'<div style="font-size:11px;color:var(--ink3)">'+groups.join(', ')+' | \u0e40\u0e2b\u0e25\u0e37\u0e2d '+b.periodsPerWeek+'\u0e04\u0e32\u0e1a</div>'
       +'</div>';
   });
@@ -1598,8 +1615,8 @@ function renderPickListClass(av,q){
 function pickSubjClass(bid){
   if(!pickCtx||pickCtx.mode!=='class')return;
   var b=gB(bid);if(!b)return;
-  var room=b.room;
-  if(room&&ROOM_CAP[room]){
+  var room=isSelfStudy(b)?selfRoomFor(b):b.room;
+  if(isSelfRoom(room)||(room&&ROOM_CAP[room])){
     sE(room,pickCtx.d,pickCtx.p,{blockId:bid,groups:b.groups||[b.classGroup]});
     closePickModal();render();
   } else {
@@ -1612,7 +1629,7 @@ function pickSubjClass(bid){
 }
 
 function cCellTeacher(tch,d,p){
-  var occupied=RM.some(function(r){
+  var occupied=ttRooms().some(function(r){
     var e=gE(r,d,p);return e&&gB(e.blockId)&&gB(e.blockId).teacher===tch;
   });
   if(occupied)return;
@@ -1699,7 +1716,7 @@ function renderPickList(q,room){
   q=(q||'').toLowerCase();
   var cap=ROOM_CAP[room]||999;
   var av=blocks.filter(function(b){
-    if(isFull(b))return false;
+    if(isFull(b)||isSelfStudy(b))return false; // วิชาเรียนด้วยตนเองไม่ใช้ห้อง
     if(q&&b.subject.toLowerCase().indexOf(q)<0&&b.teacher.toLowerCase().indexOf(q)<0&&(b.groups||[]).join().indexOf(q)<0)return false;
     return true;
   });
@@ -1817,6 +1834,8 @@ function openEdit(bid){
   document.getElementById('edit-room-sel').value=b.room||'';
   document.getElementById('edit-periods').value=b.periodsPerWeek;
   document.getElementById('edit-fac').value=b.faculty||'';
+  document.getElementById('edit-self').checked=isSelfStudy(b);
+  syncSelfFields('edit-self','edit-tch','edit-room-sel');
   buildGrpGrid('edit-grp-grid',b.groups||[b.classGroup]);
   // setTimeout: รอให้ click event bubble จบก่อนเปิด modal
   // ป้องกัน backdrop-click ปิด modal ทันที
@@ -1829,22 +1848,31 @@ function saveEdit(){
   var newRoom=document.getElementById('edit-room-sel').value;
   var newGroups=getSelGrps('edit-grp-grid');
   if(!newGroups.length){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1 \u0e2b\u0e49\u0e2d\u0e07');return;}
+  var self=document.getElementById('edit-self').checked, wasSelf=isSelfStudy(b);
   b.subject   =document.getElementById('edit-subj').value.trim()||b.subject;
-  b.teacher   =document.getElementById('edit-tch').value;
-  b.room      =newRoom;
+  b.selfStudy =self;
+  b.teacher   =self?'':document.getElementById('edit-tch').value;
+  b.room      =self?'':newRoom;
+  // เพิ่งเปลี่ยนเป็น "เรียนด้วยตนเอง" → ย้ายคาบที่วางไว้ในห้องจริงไปห้องเสมือน (คืนห้องให้วิชาอื่น)
+  if(self&&!wasSelf){
+    var vr=selfRoomFor(b);
+    RM.forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){
+      var e=gE(r,d,p.id); if(e&&e.blockId===bid){ dE(r,d,p.id); restoreEntry(vr,d,p.id,e); }
+    });});});
+  }
   b.groups    =newGroups;
   b.classGroup=newGroups[0];
   b.periodsPerWeek=parseInt(document.getElementById('edit-periods').value)||b.periodsPerWeek;
   b.faculty   =document.getElementById('edit-fac').value;
   // Update groups in placed slots
-  RM.forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){var e=gE(r,d,p.id);if(e&&e.blockId===bid){e.groups=newGroups;}});});});
+  ttRooms().forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){var e=gE(r,d,p.id);if(e&&e.blockId===bid){e.groups=newGroups;}});});});
   setDirty(true);
   closeEditModal();render();toast('\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e25\u0e49\u0e27');
 }
 function deleteBlock(){
   var bid=document.getElementById('edit-id').value;
   if(!confirm('\u0e25\u0e1a\u0e27\u0e34\u0e0a\u0e32\u0e19\u0e35\u0e49?'))return;
-  RM.forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){var e=gE(r,d,p.id);if(e&&e.blockId===bid)dE(r,d,p);});});});
+  ttRooms().forEach(function(r){DY.forEach(function(d){PD.forEach(function(p){var e=gE(r,d,p.id);if(e&&e.blockId===bid)dE(r,d,p);});});});
   blocks=blocks.filter(function(b){return b.id!==bid;});
   setDirty(true);closeEditModal();render();toast('\u0e25\u0e1a\u0e41\u0e25\u0e49\u0e27');
 }
@@ -1873,13 +1901,18 @@ function popAddForms(){
   document.getElementById('ar-sel').innerHTML=h;
   buildGrpGrid('add-grp-grid',[]);
 }
+// ติ๊ก "เรียนด้วยตนเอง" → ปิดช่องครู/ห้อง (ไม่ต้องใช้)
+function syncSelfFields(chkId,tchId,roomId){
+  var on=document.getElementById(chkId).checked;
+  [tchId,roomId].forEach(function(id){var el=document.getElementById(id);if(!el)return;el.disabled=on;if(on)el.value='';el.style.opacity=on?'.45':'';});
+}
 function addBlock(){
   var sub=document.getElementById('as').value.trim();
   var groups=getSelGrps('add-grp-grid');
   if(!sub){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e23\u0e30\u0e1a\u0e38\u0e0a\u0e37\u0e48\u0e2d\u0e27\u0e34\u0e0a\u0e32');return;}
   if(!groups.length){toast('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19');return;}
-  var id=genBlockId();
-  blocks.push({id:id,subject:sub,teacher:document.getElementById('at-sel').value,room:document.getElementById('ar-sel').value,groups:groups,classGroup:groups[0],periodsPerWeek:parseInt(document.getElementById('aperiods').value)||2,faculty:document.getElementById('af-sel').value});
+  var id=genBlockId(), self=document.getElementById('as-self').checked;
+  blocks.push({id:id,subject:sub,selfStudy:self,teacher:self?'':document.getElementById('at-sel').value,room:self?'':document.getElementById('ar-sel').value,groups:groups,classGroup:groups[0],periodsPerWeek:parseInt(document.getElementById('aperiods').value)||2,faculty:document.getElementById('af-sel').value});
   document.getElementById('as').value='';
   buildGrpGrid('add-grp-grid',[]);
   setDirty(true);render();toast('\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e27\u0e34\u0e0a\u0e32\u0e41\u0e25\u0e49\u0e27');
@@ -1996,13 +2029,14 @@ function buildImportPlan(wb){
     var subj=nrmTxt(r[C.subj]); if(!subj)continue;                         // \u0e41\u0e16\u0e27\u0e2b\u0e21\u0e32\u0e22\u0e40\u0e2b\u0e15\u0e38/\u0e27\u0e48\u0e32\u0e07
     plan.rowsRead++;
     var only=C.only>=0?nrmTxt(r[C.only]):'', roomTxt=C.room>=0?nrmTxt(r[C.room]):'';
-    var room=pickRoom(only,roomTxt);
-    if(!room&&(only||roomTxt))plan.noRoom.push(subj+' ('+(only||roomTxt)+')');
-    var teacher=getTch(tch), perTxt=nrmTxt(r[C.per]), per=parseInt(perTxt,10)||1,faculty=FAC.indexOf(fac)>=0?fac:'\u0e2d\u0e37\u0e48\u0e19\u0e46';
+    var selfRow=/self\s*-?\s*learning|เรียนด้วยตนเอง/i.test(tch+' '+subj); // Self Learning: ไม่มีครู/ห้อง
+    var room=selfRow?'':pickRoom(only,roomTxt);
+    if(!selfRow&&!room&&(only||roomTxt))plan.noRoom.push(subj+' ('+(only||roomTxt)+')');
+    var teacher=selfRow?'':getTch(tch), perTxt=nrmTxt(r[C.per]), per=parseInt(perTxt,10)||1,faculty=FAC.indexOf(fac)>=0?fac:'\u0e2d\u0e37\u0e48\u0e19\u0e46';
     var lvlTxt=String(r[C.lvl]||'').replace(/\s+/g,'');
     // ตรวจเพิ่ม: คาบไม่ใช่ตัวเลข / ไม่มีครู / Sec ไม่ตรงกับจำนวนกลุ่มที่เขียนไว้
     if(!/^\d+$/.test(perTxt)||per<1)plan.badPeriods.push(subj+' ("'+(perTxt||'ว่าง')+'") → ใช้ 1 คาบ');
-    if(!teacher)plan.noTeacher.push(subj);
+    if(!teacher&&!selfRow)plan.noTeacher.push(subj);
     var secTxt=C.sec>=0?nrmTxt(r[C.sec]):'', nSec=lvlTxt.split(',').filter(Boolean).length;
     if(/^\d+$/.test(secTxt)&&nSec&&parseInt(secTxt,10)!==nSec)plan.secMismatch.push(subj+' — Sec '+secTxt+' แต่ระดับชั้นมี '+nSec+' กลุ่ม ('+lvlTxt+')');
     // \u0e0a\u0e48\u0e2d\u0e07\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e0a\u0e31\u0e49\u0e19\u0e17\u0e35\u0e48 Excel \u0e40\u0e01\u0e47\u0e1a\u0e40\u0e1b\u0e47\u0e19 "\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48/\u0e15\u0e31\u0e27\u0e40\u0e25\u0e02" (\u0e40\u0e0a\u0e48\u0e19 \u0e1e\u0e34\u0e21\u0e1e\u0e4c 2/1 \u0e41\u0e25\u0e49\u0e27\u0e01\u0e25\u0e32\u0e22\u0e40\u0e1b\u0e47\u0e19 46054) \u2014 \u0e41\u0e08\u0e49\u0e07\u0e43\u0e2b\u0e49\u0e15\u0e23\u0e27\u0e08\u0e43\u0e19\u0e1e\u0e23\u0e35\u0e27\u0e34\u0e27
@@ -2018,7 +2052,7 @@ function buildImportPlan(wb){
       if(seen[dk])plan.dupes.push(subj+' · '+(teacher||'ไม่มีครู')+' · '+groups.map(shortCls).join('+'));
       seen[dk]=1;
       n++;
-      plan.blocks.push({id:'m'+stamp+'_'+n,subject:subj,teacher:teacher,room:room,groups:groups,classGroup:groups[0],periodsPerWeek:per,faculty:faculty});
+      plan.blocks.push({id:'m'+stamp+'_'+n,subject:subj,selfStudy:selfRow,teacher:teacher,room:room,groups:groups,classGroup:groups[0],periodsPerWeek:per,faculty:faculty});
     });
   }
   return plan;
@@ -2451,7 +2485,7 @@ function addPeriodRow(){
 // นับจำนวนรายการที่จัดไว้ในคาบ (ตาม id เดิม) เพื่อเตือนก่อนลบ
 function countPeriodPlacements(origId){
   var n=0;
-  RM.forEach(function(r){ if(!tt[r])return; DY.forEach(function(d){ if(tt[r][d]&&tt[r][d][origId])n++; }); });
+  ttRooms().forEach(function(r){ if(!tt[r])return; DY.forEach(function(d){ if(tt[r][d]&&tt[r][d][origId])n++; }); });
   return n;
 }
 function removePeriodRow(i){
@@ -2466,7 +2500,7 @@ function removePeriodRow(i){
 }
 // ย้ายข้อมูลในตารางเรียนตาม map {idเดิม:idใหม่} — คาบที่ถูกลบ (ไม่มีใน map) จะถูกทิ้ง
 function migrateTimetablePeriods(map){
-  RM.forEach(function(r){
+  ttRooms().forEach(function(r){
     if(!tt[r])return;
     DY.forEach(function(d){
       var day=tt[r][d]||{},nd={};
@@ -2777,7 +2811,7 @@ function setDirty(v){
 function collectDraftData(){
   // placed slots (sparse)
   var placed={};
-  RM.forEach(function(r){
+  ttRooms().forEach(function(r){
     DY.forEach(function(d){
       PD.forEach(function(p){
         var e=gE(r,d,p.id);
@@ -2805,7 +2839,7 @@ function collectDraftData(){
     } else {
       // Check if any field changed
       var orig=baseIds[b.id];
-      if(b.subject!==orig.subject||b.teacher!==orig.teacher||b.room!==orig.room
+      if(!!b.selfStudy!==!!orig.selfStudy||b.subject!==orig.subject||b.teacher!==orig.teacher||b.room!==orig.room
          ||b.periodsPerWeek!==orig.periodsPerWeek||b.faculty!==orig.faculty
          ||(b.groups||[]).join('|')!==(orig.groups||[orig.classGroup]).join('|')){
         editedBlocks[b.id]=b;
@@ -3824,7 +3858,7 @@ function pmBuildTbl(pv,sel){
       if(fb){h+='<span style="font-size:7pt;color:#555;padding:2pt;display:block">'+esc(fb)+'</span>';}
       else if(lch){h+='<span style="font-size:8pt;font-weight:700;color:#fff;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e01\u0e25\u0e32\u0e07\u0e27\u0e31\u0e19</span>';}
       else{
-        RM.forEach(function(r){
+        ttRooms().forEach(function(r){
           var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
           var b=gB(e.blockId);if(!b)return;
           var grps=e.groups||b.groups||[b.classGroup];
@@ -3835,7 +3869,7 @@ function pmBuildTbl(pv,sel){
           h+='<div class="ce '+fcls+'"><span class="ce-sub" style="white-space:normal">'+esc(b.subject)+'</span>'
             +(pv==='teacher'?
               '<span class="ce-inf">'+esc(b.room||'')+'<b style="float:right"> '+esc(grps.join(', '))+'</b></span>':
-              '<span class="ce-inf">'+esc(b.teacher.substring(0,12))+(b.room?'<b style="float:right"> '+esc(b.room)+'</b>':'')+'</span>'
+              '<span class="ce-inf">'+(isSelfStudy(b)?'เรียนด้วยตนเอง':esc(b.teacher.substring(0,12))+(b.room?'<b style="float:right"> '+esc(b.room)+'</b>':''))+'</span>'
               +(pv==='room'&&grps.length?'<span style="font-size:6pt;display:block;color:#555">'+esc(grps.join(', '))+'</span>':'')
             )
             +'</div>';
@@ -4013,7 +4047,7 @@ function pmBuildTbl(pv,sel){
       if(fb){h+='<span style="font-size:7pt;color:#555;padding:2pt;display:block">'+esc(fb)+'</span>';}
       else if(lch){h+='<span style="font-size:8pt;font-weight:700;color:#fff;padding:2pt;display:block">\u0e1e\u0e31\u0e01\u0e01\u0e25\u0e32\u0e07\u0e27\u0e31\u0e19</span>';}
       else{
-        RM.forEach(function(r){
+        ttRooms().forEach(function(r){
           var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
           var b=gB(e.blockId);if(!b)return;
           var grps=e.groups||b.groups||[b.classGroup];
@@ -4024,7 +4058,7 @@ function pmBuildTbl(pv,sel){
           h+='<div class="ce '+fcls+'"><span class="ce-sub" style="white-space:normal">'+esc(b.subject)+'</span>'
             +(pv==='teacher'?
               '<span class="ce-inf">'+esc(b.room||'')+'<b style="float:right"> '+esc(grps.join(', '))+'</b></span>':
-              '<span class="ce-inf">'+esc(b.teacher.substring(0,12))+(b.room?'<b style="float:right"> '+esc(b.room)+'</b>':'')+'</span>'
+              '<span class="ce-inf">'+(isSelfStudy(b)?'เรียนด้วยตนเอง':esc(b.teacher.substring(0,12))+(b.room?'<b style="float:right"> '+esc(b.room)+'</b>':''))+'</span>'
               +(pv==='room'&&grps.length?'<span style="font-size:6pt;display:block;color:#555">'+esc(grps.join(', '))+'</span>':'')
             )
             +'</div>';
@@ -4086,7 +4120,7 @@ function buildXlsxRows(pv,sel){
       var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
       if(lch){row.push('พักเที่ยง');return;}
       var parts=[];
-      RM.forEach(function(r){
+      ttRooms().forEach(function(r){
         var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
         var b=gB(e.blockId);if(!b)return;
         var grps=e.groups||b.groups||[b.classGroup];
@@ -4097,7 +4131,7 @@ function buildXlsxRows(pv,sel){
           if(b.room)lines.push(b.room);
           if(grps.length)lines.push(grps.join(', '));
         }else{
-          lines.push(b.teacher+(b.room?' | '+b.room:''));
+          lines.push(isSelfStudy(b)?'เรียนด้วยตนเอง':b.teacher+(b.room?' | '+b.room:''));
           if(pv==='room'&&grps.length)lines.push(grps.join(', '));
         }
         parts.push(lines.join('\n'));
@@ -4124,7 +4158,7 @@ function pmExecXLSX(){
   var summaryRows=[['วัน','คาบ','ห้อง','วิชา','ครู','กลุ่ม/ชั้น']];
   DY.forEach(function(d){
     PD.forEach(function(p){
-      RM.forEach(function(r){
+      ttRooms().forEach(function(r){
         var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;
         var b=gB(e.blockId);if(!b)return;
         var grps=e.groups||b.groups||[b.classGroup];
@@ -4132,7 +4166,7 @@ function pmExecXLSX(){
           return pv==='room'?r===s:pv==='teacher'?b.teacher===s:grps.indexOf(s)>=0;
         });
         if(!show)return;
-        summaryRows.push([d,'คาบ '+p.id,r,b.subject,b.teacher,grps.join(', ')]);
+        summaryRows.push([d,'คาบ '+p.id,roomLabel(r),b.subject,isSelfStudy(b)?'เรียนด้วยตนเอง':b.teacher,grps.join(', ')]);
       });
     });
   });
