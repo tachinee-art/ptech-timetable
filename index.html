@@ -446,33 +446,28 @@ input,select,textarea{font-family:inherit}
   header,aside,.modal-bg,.toast,.conflict-box,#print-modal,
   .gw,.workspace{display:none!important}
   #print-container{display:block!important}
-  #print-container *{font-family:'TH Sarabun New','Sarabun',sans-serif!important}
-  .print-page{page-break-after:always;display:block}
-  .print-page:last-child{page-break-after:avoid}
-  .print-page-hdr{border-bottom:2px solid #333;padding-bottom:4pt;margin-bottom:6pt}
-  #print-container .tt{width:100%!important;font-size:7.5pt!important;
-    table-layout:fixed!important;border-collapse:collapse!important;
-    border:1.8pt solid #222!important;outline:1.8pt solid #222!important;outline-offset:-1.8pt!important}
-  #print-container .tt th{font-size:8pt!important;padding:4pt 2pt!important;
-    background:#e8e8e8!important;border:1.2pt solid #333!important;text-align:center}
-  #print-container .tt th.rh,#print-container .tt td.rl{width:22mm!important;font-weight:700}
-  #print-container .tt td{border:1.2pt solid #333!important;padding:2pt!important;
-    height:24mm!important;vertical-align:top}
-  #print-container .tt tr.day-row>td,#print-container .tt tr.day-row>th{border-top:2.5pt solid #000!important}
-  #print-container .tt td.lunch{background:#f97316!important;vertical-align:middle!important;text-align:center!important}
-  #print-container .tt td.fblock{background:#f5f5f5!important}
-  #print-container .tt th.brk,#print-container .tt td.brk{width:6mm!important;min-width:0!important;
-    background:#f5f5f5!important;padding:0!important;position:relative!important;overflow:hidden!important}
-  #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
-    transform:translate(-50%,-50%) rotate(-90deg)!important;white-space:nowrap!important;
-    font-size:6pt!important;text-align:center!important}
-  #print-container .brk-inner .ptime{display:inline!important;margin-top:0!important;font-size:5.5pt!important}
-  #print-container .ce{display:block!important;overflow:hidden;margin:1pt;
-    border-radius:2pt;padding:2pt 3pt;font-size:7pt}
-  #print-container .ce-sub{font-size:7.5pt!important;font-weight:700!important;display:block}
-  #print-container .ce-inf{font-size:6.5pt!important;display:block}
-  #print-container .ce-rm{display:none!important}
 }
+/* หน้าพิมพ์ตารางเรียน — ใช้ทั้งตอนพิมพ์และตอนวัดขนาดบนจอก่อนพิมพ์ (#print-container ซ่อนไว้ตามปกติ) */
+#print-container *{font-family:'Angsana New','AngsanaUPC','TH Sarabun New','Sarabun',serif!important;color:#000}
+.print-page{page-break-after:always;display:block}
+.print-page:last-child{page-break-after:avoid}
+#print-container .print-page-hdr{position:relative;text-align:center;margin:0 0 5pt}
+#print-container .pp-title-wrap{display:inline-flex;align-items:center;gap:14pt}
+#print-container .pp-title{text-align:center;font-size:20pt;font-weight:700;line-height:1.12}
+#print-container .pp-stamp{position:absolute;top:0;right:0;font-size:15pt;display:flex;align-items:center;gap:5pt}
+#print-container .pp-stamp-box{display:inline-block;width:13pt;height:13pt;background:#00FF00!important}
+#print-container .tt{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;border:1pt solid #000!important}
+#print-container .tt th,#print-container .tt td{border:.75pt solid #000!important;text-align:center!important;vertical-align:middle!important;padding:1pt 2pt!important}
+#print-container .tt th{background:#EEECE1!important;font-size:16pt!important;font-weight:700!important;height:7.5mm}
+#print-container .tt th.rh,#print-container .tt td.rl{width:20mm!important;background:#EEECE1!important;font-size:19pt!important;font-weight:700!important}
+#print-container .tt td{height:24mm!important;font-size:16pt!important;font-weight:700!important;line-height:1.08;background:#fff!important}
+#print-container .tt td.fblock{background:#fff!important;font-size:19pt!important}
+#print-container .tt th.brk,#print-container .tt td.brk{width:7mm!important;min-width:0!important;background:#EEECE1!important;padding:0!important;position:relative!important;overflow:hidden!important}
+#print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:9mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
+#print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
+  transform:translate(-50%,-50%) rotate(-90deg)!important;white-space:nowrap!important;
+  font-size:15pt!important;font-weight:700!important;text-align:center!important}
+#print-container .pc-sep{border-top:.75pt dashed #000;margin:2pt 8pt}
 
 </style>
 </head>
@@ -956,6 +951,7 @@ function defaultSpecialSlots(){
 }
 var BREAKS = [];        // [{beforePeriod,label,t,tEnd}] — คอลัมน์พักที่จัดวิชาไม่ได้ (โฮมรูมเช้า/พักเบรก) ตั้งค่าโดย loadTermData()
 var DIRECTOR_NAME = ''; // ชื่อผู้อำนวยการสำหรับลงชื่อท้ายเอกสารพิมพ์
+var PRINT_ISSUED='', PRINT_EFFECTIVE=''; // วันที่ทำ / วันเริ่มประกาศใช้ — มุมขวาบนของหน้าพิมพ์ (ข้อความอิสระ เช่น 22/11/68)
 var PRINT_SUBTITLE_TPL = null; // {room,class,teacher} — รูปแบบบรรทัดใต้ชื่อตารางตอนพิมพ์ ใช้ {item}/{dept}/{advisor} แทนค่าจริง
 function defaultPrintSubtitleTpl(){
   return {
@@ -2360,7 +2356,7 @@ function buildSettingsPayload(){
   return {
     lunchPeriods:LUNCH_PERIOD, specialSlots:SPECIAL_SLOTS,
     periods:PD, breaks:BREAKS, directorName:DIRECTOR_NAME,
-    printSubtitleTpl:PRINT_SUBTITLE_TPL, classDept:CLASS_DEPT, classAdvisor:CLASS_ADVISOR,
+    printSubtitleTpl:PRINT_SUBTITLE_TPL, printIssued:PRINT_ISSUED, printEffective:PRINT_EFFECTIVE, classDept:CLASS_DEPT, classAdvisor:CLASS_ADVISOR,
     termStart:TERM_START, termEnd:TERM_END,
     customized:true
   };
@@ -3686,6 +3682,7 @@ function loadTermData(t){
     BREAKS=(settings.breaks||[]).slice();
     DIRECTOR_NAME=settings.directorName||'';
     PRINT_SUBTITLE_TPL=settings.printSubtitleTpl?Object.assign(defaultPrintSubtitleTpl(),settings.printSubtitleTpl):defaultPrintSubtitleTpl();
+    PRINT_ISSUED=settings.printIssued||''; PRINT_EFFECTIVE=settings.printEffective||'';
     CLASS_DEPT=Object.assign({},settings.classDept||{});
     CLASS_ADVISOR=Object.assign({},settings.classAdvisor||{});
     TERM_START=settings.termStart||''; TERM_END=settings.termEnd||'';
@@ -3696,6 +3693,7 @@ function loadTermData(t){
     BREAKS=defaultBreaks();
     DIRECTOR_NAME='';
     PRINT_SUBTITLE_TPL=defaultPrintSubtitleTpl();
+    PRINT_ISSUED=''; PRINT_EFFECTIVE='';
     CLASS_DEPT={};
     CLASS_ADVISOR={};
     TERM_START=''; TERM_END='';
@@ -3988,7 +3986,7 @@ function buildLetterheadHtml(pv,item){
 }
 function buildSignatureHtml(){
   if(!DIRECTOR_NAME)return '';
-  return '<div style="text-align:center;margin-top:16pt;font-size:9pt">'
+  return '<div style="text-align:center;margin-top:10pt;font-size:14pt;line-height:1.15">'
     +'<div>\u0e25\u0e07\u0e0a\u0e37\u0e48\u0e2d.............................................</div>'
     +'<div style="margin-top:4pt">( '+esc(DIRECTOR_NAME)+' )</div>'
     +'<div>\u0e1c\u0e39\u0e49\u0e2d\u0e33\u0e19\u0e27\u0e22\u0e01\u0e32\u0e23</div>'
@@ -4083,6 +4081,13 @@ function pmBuildTbl(pv,sel){
       </select>
       <span id="PM-count" style="font-weight:700;min-width:50px;text-align:right;white-space:nowrap">0 &#xe2b;&#xe19;&#xe49;&#xe32;</span>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;padding:10px;background:#f5f5f5;border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
+      <label style="font-size:13px;color:#555;white-space:nowrap">วันที่ทำ</label>
+      <input id="PM-issued" type="text" placeholder="เช่น 22/11/68" style="font-family:inherit;font-size:13px;padding:5px 8px;border:1.5px solid #ddd;border-radius:6px;width:110px">
+      <label style="font-size:13px;color:#555;white-space:nowrap">เริ่มประกาศใช้</label>
+      <input id="PM-effective" type="text" placeholder="เช่น 24/11/68" style="font-family:inherit;font-size:13px;padding:5px 8px;border:1.5px solid #ddd;border-radius:6px;width:110px">
+      <span style="font-size:11px;color:#888;flex-basis:100%">แสดงมุมขวาบนของทุกหน้า — เว้นว่างได้ ระบบจำค่าไว้ในเทอมนี้</span>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button onclick="document.getElementById('PM').style.display='none'" style="padding:8px 20px;border:1.5px solid #ddd;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;background:#fff">&#xe22;&#xe01;&#xe40;&#xe25;&#xe34;&#xe01;</button>
       <button onclick="pmExecXLSX()" style="padding:8px 20px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600">&#128202; Excel</button>
@@ -4100,6 +4105,8 @@ function openPrintModal(){
   if(!pm){console.error('PM modal not found');return;}
   var pv=document.getElementById('PM-view');
   pv.value=typeof view!=='undefined'?(view==='teacher'?'teacher':view==='room'?'room':'class'):'class';
+  document.getElementById('PM-issued').value=PRINT_ISSUED||'';
+  document.getElementById('PM-effective').value=PRINT_EFFECTIVE||'';
   pmBuild();
   pm.style.display='block';
   setTimeout(function(){pmSel('all');},60);
@@ -4156,6 +4163,7 @@ function pmCnt(){
 }
 
 function buildLetterheadHtml(pv,item){
+  // รูปแบบตามเอกสารประกาศใช้จริง: หัวเรื่อง 3 บรรทัดกึ่งกลาง โลโก้ด้านขวา วันที่ทำ/ประกาศใช้มุมขวาบน
   var termLabel=TERM_DISPLAY_NAME||(document.getElementById('draft-name')?document.getElementById('draft-name').value.trim():'PTECH');
   var tpl=(PRINT_SUBTITLE_TPL||defaultPrintSubtitleTpl())[pv]||'{item}';
   // กันคำซ้ำ: ถ้าคำหน้า {item} ตรงกับคำที่ชื่อขึ้นต้นอยู่แล้ว (เช่น "ปวช {item}" + "ปวช.1/3") ให้ตัดคำหน้าออก
@@ -4163,33 +4171,55 @@ function buildLetterheadHtml(pv,item){
   var dept=pv==='class'?(CLASS_DEPT[item]||''):'';
   var advisor=pv==='class'?(CLASS_ADVISOR[item]||''):'';
   var subtitle=esc(tpl).split('{item}').join(esc(item)).split('{dept}').join(esc(dept)).split('{advisor}').join(esc(advisor));
-  var logoBlock=LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:50pt;width:50pt;object-fit:contain;flex-shrink:0">':'';
-  return '<div class="print-page-hdr" style="text-align:center;border-bottom:2.5px solid #222;padding-bottom:8pt;margin-bottom:10pt">'
-    +'<div style="display:inline-flex;align-items:center;gap:10pt;text-align:left">'
-    +logoBlock
-    +'<div style="text-align:center">'
-    +'<div style="font-size:13pt;font-weight:700;line-height:1.6">'+esc(SCHOOL_NAME)+'</div>'
-    +'<div style="font-size:11.5pt;font-weight:700;margin-top:5pt;line-height:1.6">\u0e15\u0e32\u0e23\u0e32\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 \u0e20\u0e32\u0e04\u0e40\u0e23\u0e35\u0e22\u0e19\u0e17\u0e35\u0e48 '+esc(termLabel)+'</div>'
-    +'<div style="font-size:9.5pt;color:#333;margin-top:5pt;line-height:1.6">'+subtitle+'</div>'
+  var logoBlock=LOGO_DATA_URI?'<img src="'+LOGO_DATA_URI+'" style="height:48pt;width:48pt;object-fit:contain;flex-shrink:0">':'';
+  var stamp='';
+  if(PRINT_ISSUED||PRINT_EFFECTIVE){
+    stamp='<div class="pp-stamp">'+esc(PRINT_ISSUED)+(PRINT_EFFECTIVE?' (เริ่มประกาศใช้ '+esc(PRINT_EFFECTIVE)+')':'')
+      +'<span class="pp-stamp-box"></span></div>';
+  }
+  return '<div class="print-page-hdr">'+stamp
+    +'<div class="pp-title-wrap">'
+    +'<div class="pp-title">'
+    +'<div>'+esc(SCHOOL_NAME)+'</div>'
+    +'<div>ตารางเรียน ภาคเรียนที่ '+esc(termLabel)+'</div>'
+    +'<div>'+subtitle+'</div>'
     +'</div>'
+    +logoBlock
     +'</div>'
     +'</div>';
 }
 function buildSignatureHtml(){
   if(!DIRECTOR_NAME)return '';
-  return '<div style="text-align:center;margin-top:16pt;font-size:9pt">'
+  return '<div style="text-align:center;margin-top:10pt;font-size:14pt;line-height:1.15">'
     +'<div>\u0e25\u0e07\u0e0a\u0e37\u0e48\u0e2d.............................................</div>'
     +'<div style="margin-top:4pt">( '+esc(DIRECTOR_NAME)+' )</div>'
     +'<div>\u0e1c\u0e39\u0e49\u0e2d\u0e33\u0e19\u0e27\u0e22\u0e01\u0e32\u0e23</div>'
     +'</div>';
 }
 function fmtT(t){ return (t||'').replace(':','.'); } // เวลาแบบเอกสารทางการ ใช้จุดแทนโคลอน เช่น 08.15
+// ย่อหน้าพิมพ์ให้พอดี A4 แนวนอน 1 แผ่น (พื้นที่พิมพ์ 281×188 มม. ตาม @page margin)
+// ขยายความกว้างก่อนย่อ เพื่อให้ตารางกว้างเต็มกระดาษหลังย่อ และข้อความตัดบรรทัดน้อยลง
+function fitPrintPage(pg){
+  var W=281,H=188,mm=96/25.4;
+  function fits(z){pg.style.zoom='';pg.style.width=(W/z)+'mm';return pg.offsetHeight/mm*z<=H;}
+  var z=1;
+  if(!fits(1)){ // หาอัตราย่อที่ใหญ่ที่สุดที่ยังพอดีหน้า (binary search)
+    var lo=0.4,hi=1;
+    for(var k=0;k<7;k++){var mid=(lo+hi)/2;if(fits(mid))lo=mid;else hi=mid;}
+    z=lo;
+  }
+  pg.style.width=(W/z)+'mm';
+  pg.style.zoom=z<1?String(z):'';
+}
 function pmExec(){
   var pv=document.getElementById('PM-view').value;
   var sel=[];
   document.querySelectorAll('#PM-grid button').forEach(function(b){if(b._sel)sel.push(b._val||b.title);});
   if(!sel.length){alert('\u0e01\u0e23\u0e38\u0e13\u0e32\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e19\u0e49\u0e2d\u0e22 1');return;}
   document.getElementById('PM').style.display='none';
+  // วันที่ทำ/ประกาศใช้ — ถ้าเปลี่ยน ให้จำไว้ในการตั้งค่าเทอม
+  var iss=(document.getElementById('PM-issued').value||'').trim(), eff=(document.getElementById('PM-effective').value||'').trim();
+  if(iss!==PRINT_ISSUED||eff!==PRINT_EFFECTIVE){PRINT_ISSUED=iss;PRINT_EFFECTIVE=eff;if(_currentTermId)saveScheduleSettingsQuick();}
   var ctr=document.getElementById('print-container');
   ctr.innerHTML='';
   sel.forEach(function(s){
@@ -4201,29 +4231,31 @@ function pmExec(){
     ctr.appendChild(pg);
   });
   ctr.style.display='block';
+  ctr.querySelectorAll('.print-page').forEach(fitPrintPage); // ย่อแต่ละหน้าให้พอดีกระดาษ 1 แผ่น
   var wait=Math.min(400+sel.length*60,2500);
   setTimeout(function(){window.print();setTimeout(function(){ctr.style.display='none';ctr.innerHTML='';},1200);},wait);
 }
 
 function pmBuildTbl(pv,sel){
-  var h='<thead><tr><th class="rh">\u0e27\u0e31\u0e19/\u0e40\u0e27\u0e25\u0e32</th>';
+  // รูปแบบตามเอกสารประกาศใช้จริง: ช่องพื้นขาว ตัวอักษรดำกึ่งกลาง (วิชา / กลุ่มเรียน / ห้อง / ครู)
+  // หัวตาราง คอลัมน์วัน และช่องพักสีเบจ — พักเที่ยงของชั้นเป็นคอลัมน์สีส้มยาวทั้งสัปดาห์
+  var lunchP=pv==='class'?LUNCH_PERIOD[sel]:null;
+  function brkTd(bk){return '<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' เวลา '+fmtT(bk.t)+' - '+fmtT(bk.tEnd)+' น.</div></td>';}
+  function brksBefore(pid){return BREAKS.filter(function(bk){return bk.beforePeriod===pid;});}
+  var h='<thead><tr><th class="rh">วัน/เวลา</th>';
   PD.forEach(function(p){
-    BREAKS.filter(function(bk){return bk.beforePeriod===p.id;}).forEach(function(bk){
-      h+='<th class="brk">\u0e1e\u0e31\u0e01</th>';
-    });
-    h+='<th class="ph">'+fmtT(p.t)+' - '+fmtT(p.tEnd||'')+'</th>';
+    brksBefore(p.id).forEach(function(){h+='<th class="brk"></th>';});
+    h+=p.id===lunchP?'<th class="lunch-col"></th>':'<th class="ph">'+fmtT(p.t)+' - '+fmtT(p.tEnd||'')+'</th>';
   });
-  BREAKS.filter(function(bk){return bk.beforePeriod===BRK_END;}).forEach(function(bk){h+='<th class="brk">\u0e1e\u0e31\u0e01</th>';});
+  brksBefore(BRK_END).forEach(function(){h+='<th class="brk"></th>';});
   h+='</tr></thead><tbody>';
   DY.forEach(function(d,di){
-    h+='<tr class="day-row"><td class="rl" style="text-align:center;vertical-align:middle;font-weight:700">'+esc(d)+'</td>';
-    // เตรียมเนื้อหาของทุกคาบในวันนี้ก่อน แล้วค่อยรวมคาบที่ติดกันเป็นช่องเดียว
-    // key = วิชา|ห้อง — รวมได้เฉพาะช่องที่มีรายการเดียว วิชาเดียวกัน ห้องเดียวกัน
+    h+='<tr><td class="rl">'+esc(d)+'</td>';
+    // เตรียมเนื้อหาทุกคาบของวันก่อน แล้วรวมคาบที่ติดกัน (วิชา+ห้องเดียวกัน หรือคาบพิเศษชื่อเดียวกัน) เป็นช่องเดียว
     var cells=PD.map(function(p){
+      if(p.id===lunchP)return {lunch:true,key:null};
       var fb=isFB(d,p.id);
-      var lch=pv==='class'&&typeof isL==='function'&&isL(sel,p.id);
-      if(fb)return {cls:'fblock',key:null,html:'<span style="font-size:7pt;color:#555;padding:2pt;display:block">'+esc(fb)+'</span>'};
-      if(lch)return {cls:'lunch',key:null,html:'<span style="font-size:8pt;font-weight:700;color:#fff;padding:2pt;display:block">พักกลางวัน</span>'};
+      if(fb)return {cls:'fblock',key:'fb|'+fb,html:'<div>'+esc(fb)+'</div>'};
       var items=[];
       ttRooms().forEach(function(r){
         var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;if(pv!=='room'&&e.shadowOf)return;
@@ -4231,38 +4263,33 @@ function pmBuildTbl(pv,sel){
         var grps=e.groups||b.groups||[b.classGroup];
         var show=pv==='room'?r===sel:pv==='teacher'?b.teacher===sel:grps.indexOf(sel)>=0;
         if(!show)return;
-        var fc=b.faculty||'';
-        var fcls=fc.indexOf('อุตสาห')>=0?'fi':fc.indexOf('บริหาร')>=0?'fb':fc.indexOf('เทค')>=0?'ft':'fo';
-        items.push({key:b.id+'|'+r,fcls:fcls,subj:esc(b.subject),rest:
-          (pv==='teacher'?
-            '<span class="ce-inf">'+esc(entRooms(r,e))+'<b style="float:right"> '+esc(grps.join(', '))+'</b></span>':
-            '<span class="ce-inf">'+(isSelfStudy(b)?'เรียนด้วยตนเอง':esc(b.teacher.substring(0,12))+('<b style="float:right"> '+esc(entRooms(r,e))+'</b>'))+'</span>'
-            +(pv==='room'&&grps.length?'<span style="font-size:6pt;display:block;color:#555">'+esc(grps.join(', '))+'</span>':'')
-          )});
+        var gtxt=grps.map(shortCls).join(' + '), lines=[b.subject];
+        if(isSelfStudy(b))lines.push('เรียนด้วยตนเอง');
+        else if(pv==='class'){if(grps.length>1)lines.push(gtxt);lines.push(entRooms(r,e));if(b.teacher)lines.push(b.teacher);}
+        else if(pv==='room'){lines.push(gtxt);if(b.teacher)lines.push(b.teacher);}
+        else{lines.push(gtxt);lines.push(entRooms(r,e));}
+        items.push({key:b.id+'|'+r,html:lines.map(function(t){return '<div>'+esc(t)+'</div>';}).join('')});
       });
-      return {cls:'',key:items.length===1?items[0].key:null,items:items};
+      return {cls:'',key:items.length===1?items[0].key:null,html:items.map(function(it){return it.html;}).join('<div class="pc-sep"></div>')};
     });
-    function itemHtml(it){
-      return '<div class="ce '+it.fcls+'"><span class="ce-sub" style="white-space:normal">'+it.subj+'</span>'+it.rest+'</div>';
-    }
     for(var i=0;i<PD.length;i++){
-      BREAKS.filter(function(bk){return bk.beforePeriod===PD[i].id;}).forEach(function(bk){
-        if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' เวลา '+fmtT(bk.t)+' - '+fmtT(bk.tEnd)+' น.</div></td>';
-      });
-      var c=cells[i], span=1;
-      // ขยายช่องไปคาบถัดไปตราบที่เป็นวิชา+ห้องเดียวกัน และไม่มีช่วงพักคั่น
-      while(c.key&&i+span<PD.length&&cells[i+span].key===c.key
-        &&!BREAKS.some(function(bk){return bk.beforePeriod===PD[i+span].id;}))span++;
-      h+='<td class="'+c.cls+'"'+(span>1?' colspan="'+span+'"':'')+'>'
-        +(c.html!=null?c.html:c.items.map(itemHtml).join(''))+'</td>';
+      if(di===0)brksBefore(PD[i].id).forEach(function(bk){h+=brkTd(bk);});
+      var c=cells[i];
+      if(c.lunch){
+        if(di===0)h+='<td class="lunch-col" rowspan="'+DY.length+'"><div class="brk-inner">พักเที่ยง เวลา '+fmtT(PD[i].t)+' - '+fmtT(PD[i].tEnd||'')+' น.</div></td>';
+        continue;
+      }
+      var span=1;
+      // ขยายช่องไปคาบถัดไปตราบที่เนื้อหาเหมือนกัน และไม่มีช่วงพักคั่น
+      while(c.key&&i+span<PD.length&&cells[i+span].key===c.key&&!brksBefore(PD[i+span].id).length)span++;
+      h+='<td class="'+c.cls+'"'+(span>1?' colspan="'+span+'"':'')+'>'+c.html+'</td>';
       i+=span-1;
     }
-    BREAKS.filter(function(bk){return bk.beforePeriod===BRK_END;}).forEach(function(bk){ // พักหลังคาบสุดท้าย เช่น โฮมรูมเย็น
-      if(di===0)h+='<td class="brk" rowspan="'+DY.length+'"><div class="brk-inner">'+esc(bk.label)+' เวลา '+fmtT(bk.t)+' - '+fmtT(bk.tEnd)+' น.</div></td>';
-    });
+    if(di===0)brksBefore(BRK_END).forEach(function(bk){h+=brkTd(bk);});
     h+='</tr>';
-  });h+='</tbody>';
-  var t=document.createElement('table');t.className='tt';
+  });
+  h+='</tbody>';
+  var t=document.createElement('table');t.className='tt pp-tt';
   t.style.cssText='width:100%;border-collapse:collapse;table-layout:fixed';
   t.innerHTML=h;return t;
 }
