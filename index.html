@@ -444,7 +444,7 @@ input,select,textarea{font-family:inherit}
   html,body{overflow:visible!important}
   .shell,.topbar,.ws-toolbar,.statbar,.sidebar,.side,.stabs,.tb,
   header,aside,.modal-bg,.toast,.conflict-box,#print-modal,
-  .gw,.workspace{display:none!important}
+  .gw,.workspace,#server-down-banner,#new-version-banner{display:none!important}
   #print-container{display:block!important}
 }
 /* หน้าพิมพ์ตารางเรียน — ใช้ทั้งตอนพิมพ์และตอนวัดขนาดบนจอก่อนพิมพ์ (#print-container ซ่อนไว้ตามปกติ) */
@@ -454,16 +454,15 @@ input,select,textarea{font-family:inherit}
 #print-container .print-page-hdr{position:relative;text-align:center;margin:0 0 5pt}
 #print-container .pp-title-wrap{display:inline-flex;align-items:center;gap:14pt}
 #print-container .pp-title{text-align:center;font-size:18pt;font-weight:700;line-height:1.15}
-#print-container .pp-stamp{position:absolute;top:0;right:0;font-size:13.5pt;display:flex;align-items:center;gap:5pt}
-#print-container .pp-stamp-box{display:inline-block;width:13pt;height:13pt;background:#00FF00!important}
-#print-container .tt{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;border:1.5pt solid #000!important}
-#print-container .tt th,#print-container .tt td{border:1pt solid #000!important;text-align:center!important;vertical-align:middle!important;padding:2pt 4pt!important;width:auto!important;overflow:visible!important}
+#print-container .pp-stamp{position:absolute;top:0;right:0;font-size:13.5pt}
+#print-container .tt{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;border:var(--bw,1.5pt) solid #000!important}
+#print-container .tt th,#print-container .tt td{border:var(--bw,1.5pt) solid #000!important;text-align:center!important;vertical-align:middle!important;padding:2pt 4pt!important;width:auto!important;overflow:visible!important}
 #print-container .tt th{background:#EEECE1!important;font-size:14.5pt!important;font-weight:700!important;height:7.5mm}
 #print-container .tt th.rh,#print-container .tt td.rl{width:20mm!important;background:#EEECE1!important;font-size:17pt!important;font-weight:700!important}
 #print-container .tt td{height:24mm!important;font-size:14.5pt!important;font-weight:700!important;line-height:1.18!important;background:#fff!important}
 #print-container .tt td.fblock{background:#fff!important;font-size:17pt!important}
 #print-container .tt th.brk,#print-container .tt td.brk{width:7mm!important;min-width:0!important;background:#EEECE1!important;padding:0!important;position:relative!important;overflow:hidden!important}
-#print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:9mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
+#print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:16mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
   transform:translate(-50%,-50%) rotate(-90deg)!important;white-space:nowrap!important;
   font-size:13.5pt!important;font-weight:700!important;text-align:center!important}
@@ -738,7 +737,7 @@ input,select,textarea{font-family:inherit}
     <h2>แก้ไขรายวิชา</h2>
     <input type="hidden" id="edit-id">
     <div class="modal-body">
-      <div class="fld"><label>ชื่อวิชา</label><input type="text" id="edit-subj"></div>
+      <div class="fld"><label>ชื่อวิชา <span style="font-weight:400;opacity:.65">— ใส่ | ตรงที่อยากให้ตัดบรรทัดตอนพิมพ์ได้ เช่น การเป็น|ผู้ประกอบการ</span></label><input type="text" id="edit-subj"></div>
       <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer"><input type="checkbox" id="edit-self" onchange="syncSelfFields('edit-self','edit-tch','edit-room-sel');syncRoomMode()"> 📖 เรียนด้วยตนเอง (ไม่ใช้ครู/ห้อง)</label>
       <div class="row2">
         <div class="fld"><label>ครูผู้สอน</label><select id="edit-tch"></select></div>
@@ -1154,9 +1153,9 @@ function askSplitRoom(b,cb){
   var opts=[{room:b.room,lbl:'ทฤษฎี',n:c.th,t:set?(b.thP||0):null},{room:b.room2,lbl:'ปฏิบัติ',n:c.lab,t:set?(b.labP||0):null}];
   var open=opts.filter(function(o){return o.t==null||o.n<o.t;});
   if(set&&open.length===1){cb(open[0].room);return;}
-  if(set&&!open.length){toast('วาง '+b.subject+' ครบทั้งทฤษฎีและปฏิบัติแล้ว','warn');return;}
+  if(set&&!open.length){toast('วาง '+sName(b)+' ครบทั้งทฤษฎีและปฏิบัติแล้ว','warn');return;}
   _splitCb=cb;
-  document.getElementById('sp-title').textContent=b.subject;
+  document.getElementById('sp-title').textContent=sName(b);
   document.getElementById('sp-sub').textContent='คาบนี้เป็นคาบทฤษฎีหรือปฏิบัติ?';
   var h='';
   opts.forEach(function(o){
@@ -1361,7 +1360,7 @@ function renderBL(q){
   q=(q||'').toLowerCase();
   var pend=[],done=[];
   blocks.forEach(function(b){
-    if(q&&b.subject.toLowerCase().indexOf(q)<0&&b.teacher.toLowerCase().indexOf(q)<0&&(b.room||'').toLowerCase().indexOf(q)<0&&(b.groups||[]).join().indexOf(q)<0)return;
+    if(q&&sName(b).toLowerCase().indexOf(q)<0&&b.teacher.toLowerCase().indexOf(q)<0&&(b.room||'').toLowerCase().indexOf(q)<0&&(b.groups||[]).join().indexOf(q)<0)return;
     (isFull(b)?done:pend).push(b);
   });
   var all=pend.concat(done), el=document.getElementById('blist');
@@ -1393,7 +1392,7 @@ function renderBL(q){
       +' ondragstart="onDS(event,\''+b.id+'\')" ondragend="onDE()">'
       +'<div class="bcard-accent" style="background:'+accentCol+'"></div>'
       +'<div class="bcard-body">'
-      +'<div class="bcard-name">'+esc(b.subject)+'</div>'
+      +'<div class="bcard-name">'+esc(sName(b))+'</div>'
       +'<div class="bcard-row">'+chipHtml+roomChip
         +'<span class="bcard-teacher">'+(isSelfStudy(b)?'📖 เรียนด้วยตนเอง':esc(b.teacher.substring(0,14)))+'</span>'
       +'</div>'
@@ -1449,7 +1448,7 @@ function renderCL(){
     h+='<div class="section-head">\u0e2b\u0e49\u0e2d\u0e07\u0e04\u0e31\u0e1a\u0e41\u0e19\u0e48/\u0e40\u0e01\u0e34\u0e19</div>';
     capIss.forEach(function(ci){
       h+='<div class="conf-item warn" style="cursor:pointer" onclick="openEdit(\''+ci.b.id+'\')">'
-        +'<b>'+esc(ci.b.subject.substring(0,22))+'</b><br>'
+        +'<b>'+esc(sName(ci.b).substring(0,22))+'</b><br>'
         +(ci.b.groups||[ci.b.classGroup]).join(',')+' \u2022 '+ci.ns+'\u0e04\u0e19 > \u0e2b\u0e49\u0e2d\u0e07 '+esc(ci.b.room)+' ('+ci.cs.cap+') '
         +(ci.cs.pct>100?'<b>\u0e40\u0e01\u0e34\u0e19 '+(ci.ns-ci.cs.cap)+'\u0e04\u0e19</b>':'')
         +'</div>';
@@ -1475,7 +1474,7 @@ function renderCE(b,e,room,d,p,showGroup){
   }
   return '<div class="ce '+fC(b.faculty)+' '+cs.cls+'" draggable="true"'
     +' ondragstart="onDS(event,\''+b.id+'\',\''+room+'\',\''+d+'\','+p+')" ondragend="onDE()">'
-    +'<div class="ce-sub">'+esc(b.subject)+'</div>'
+    +'<div class="ce-sub">'+esc(sName(b))+'</div>'
     +(isSelfStudy(b)
       ?'<div class="ce-inf">📖 เรียนด้วยตนเอง</div>'
       :'<div class="ce-inf">'+esc(b.teacher.substring(0,8))+(room?'<span style="float:right;font-weight:700;color:inherit"> '+esc(entRooms(room,e))+(b.roomMode==='split'&&hasTwoRooms(b)&&!e.shadowOf?(room===b.room2?' ·ป':' ·ท'):'')+'</span>':'')+'</div>')
@@ -1599,7 +1598,7 @@ function oDrop(e,room,d,p){
   if(!drag)return;
   var b=gB(drag.bid);if(!b)return;
   if(isSelfStudy(b)){
-    showConflict('วิชาเรียนด้วยตนเอง','• <b>'+esc(b.subject)+'</b> ไม่ต้องใช้ห้องเรียน<br>• ให้ไปวางในมุมมอง <b>"ดูตามชั้น"</b> แทน',null);
+    showConflict('วิชาเรียนด้วยตนเอง','• <b>'+esc(sName(b))+'</b> ไม่ต้องใช้ห้องเรียน<br>• ให้ไปวางในมุมมอง <b>"ดูตามชั้น"</b> แทน',null);
     return;
   }
   var groups=b.groups||[b.classGroup];
@@ -1631,7 +1630,7 @@ function oDrop(e,room,d,p){
     var exB=gB(existing.blockId);
     showConflict(
       '\u0e2b\u0e49\u0e2d\u0e07\u0e16\u0e39\u0e01\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27',
-      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?exB.subject:'')+
+      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?sName(exB):'')+
       '</b> \u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27<br>'+
       '\u2022 \u0e2a\u0e2d\u0e19\u0e42\u0e14\u0e22: '+(exB?exB.teacher:'')+
       '<br>\u2022 \u0e01\u0e25\u0e38\u0e48\u0e21: '+(existing.groups||[]).join(', ')+
@@ -1653,7 +1652,7 @@ function oDrop(e,room,d,p){
   if(tchConflict){
     showConflict(
       '\u0e04\u0e23\u0e39\u0e2a\u0e2d\u0e19\u0e0b\u0e49\u0e2d\u0e19',
-      '\u2022 <b>'+b.teacher+'</b> \u0e2a\u0e2d\u0e19\u0e27\u0e34\u0e0a\u0e32 <b>'+tchConflict.block.subject+
+      '\u2022 <b>'+b.teacher+'</b> \u0e2a\u0e2d\u0e19\u0e27\u0e34\u0e0a\u0e32 <b>'+sName(tchConflict.block)+
       '</b> \u0e17\u0e35\u0e48\u0e2b\u0e49\u0e2d\u0e07 <b>'+tchConflict.room+'</b> \u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27<br>'+
       '\u2022 \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e04\u0e32\u0e1a '+p+
       '<br><span style="color:var(--amber)">\u0e01\u0e14 \u201c\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u201d \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e21\u0e49\u0e21\u0e35\u0e0a\u0e19</span>',
@@ -1676,7 +1675,7 @@ function oDrop(e,room,d,p){
     showConflict(
       '\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19\u0e0b\u0e49\u0e2d\u0e19',
       '\u2022 \u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 <b>'+clsConflict.overlap.join(', ')+
-      '</b> \u0e40\u0e23\u0e35\u0e22\u0e19\u0e27\u0e34\u0e0a\u0e32 <b>'+(clsConflict.block?clsConflict.block.subject:'')+
+      '</b> \u0e40\u0e23\u0e35\u0e22\u0e19\u0e27\u0e34\u0e0a\u0e32 <b>'+(clsConflict.block?sName(clsConflict.block):'')+
       '</b> \u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27<br>'+
       '\u2022 \u0e17\u0e35\u0e48\u0e2b\u0e49\u0e2d\u0e07 <b>'+clsConflict.room+'</b> \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e04\u0e32\u0e1a '+p+
       '<br><span style="color:var(--amber)">\u0e01\u0e14 \u201c\u0e41\u0e17\u0e19\u0e17\u0e35\u0e48\u201d \u0e40\u0e1e\u0e37\u0e48\u0e2d\u0e1a\u0e31\u0e19\u0e17\u0e36\u0e01\u0e41\u0e21\u0e49\u0e21\u0e35\u0e0a\u0e19</span>',
@@ -1701,7 +1700,7 @@ function oDropClass(e,cg,d,p){
   if(groups.indexOf(cg)<0){
     showConflict(
       '\u0e27\u0e34\u0e0a\u0e32\u0e44\u0e21\u0e48\u0e15\u0e23\u0e07\u0e01\u0e31\u0e1a\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19\u0e19\u0e35\u0e49',
-      '\u2022 \u0e27\u0e34\u0e0a\u0e32 <b>'+b.subject+'</b> \u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 <b>'+groups.join(', ')+'</b><br>'+
+      '\u2022 \u0e27\u0e34\u0e0a\u0e32 <b>'+sName(b)+'</b> \u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a\u0e2b\u0e49\u0e2d\u0e07\u0e40\u0e23\u0e35\u0e22\u0e19 <b>'+groups.join(', ')+'</b><br>'+
       '\u2022 \u0e44\u0e21\u0e48\u0e43\u0e0a\u0e48 <b>'+cg+'</b>',
       null
     );
@@ -1728,7 +1727,7 @@ function oDropClass(e,cg,d,p){
     var exB=gB(existing.blockId);
     showConflict(
       '\u0e2b\u0e49\u0e2d\u0e07\u0e16\u0e39\u0e01\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27',
-      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?exB.subject:'')+
+      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?sName(exB):'')+
       '</b> \u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27',
       function(){
         if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
@@ -1779,7 +1778,7 @@ function oDropTeacher(e,tch,d,p){
     var exB=gB(existing.blockId);
     showConflict(
       '\u0e2b\u0e49\u0e2d\u0e07\u0e16\u0e39\u0e01\u0e43\u0e0a\u0e49\u0e07\u0e32\u0e19\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27',
-      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?exB.subject:'')+
+      '\u2022 \u0e2b\u0e49\u0e2d\u0e07 <b>'+room+'</b> \u0e04\u0e32\u0e1a '+p+' \u0e27\u0e31\u0e19<b>'+d+'</b> \u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32 <b>'+(exB?sName(exB):'')+
       '</b> \u0e2d\u0e22\u0e39\u0e48\u0e41\u0e25\u0e49\u0e27',
       function(){
         if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
@@ -1816,7 +1815,7 @@ function cCellClass(cg,d,p){
 function renderPickListClass(av,q){
   q=(q||'').toLowerCase();
   var filtered=av.filter(function(b){
-    return !q||b.subject.toLowerCase().indexOf(q)>=0||b.teacher.toLowerCase().indexOf(q)>=0;
+    return !q||sName(b).toLowerCase().indexOf(q)>=0||b.teacher.toLowerCase().indexOf(q)>=0;
   });
   var el=document.getElementById('pick-list');
   if(!filtered.length){el.innerHTML='<div style="text-align:center;color:var(--ink3);padding:16px 0;font-size:12px">\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32</div>';return;}
@@ -1824,7 +1823,7 @@ function renderPickListClass(av,q){
   filtered.forEach(function(b){
     var groups=b.groups||[b.classGroup];
     h+='<div data-bid="'+esc(b.id)+'" class="pick-item" style="padding:8px 10px;border:1.5px solid var(--line);border-radius:6px;cursor:pointer;margin-bottom:3px">'
-      +'<div style="font-size:13px;font-weight:600">'+esc(b.subject)+'</div>'
+      +'<div style="font-size:13px;font-weight:600">'+esc(sName(b))+'</div>'
       +'<div style="font-size:11px;color:var(--ink3)">'+(isSelfStudy(b)?'📖 เรียนด้วยตนเอง — ไม่ต้องมีครู/ห้อง':esc(b.teacher)+' | \u0e2b\u0e49\u0e2d\u0e07: '+esc(b.room||'\u0e22\u0e31\u0e07\u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38'))+'</div>'
       +'<div style="font-size:11px;color:var(--ink3)">'+groups.join(', ')+' | \u0e40\u0e2b\u0e25\u0e37\u0e2d '+b.periodsPerWeek+'\u0e04\u0e32\u0e1a</div>'
       +'</div>';
@@ -1909,7 +1908,7 @@ var _pendingDrop=null;
 function openRoomPickDrop(bid,d,p){
   var b=gB(bid);
   var ns=b?nSt(b.groups||[b.classGroup]):0;
-  document.getElementById('rm-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a: '+(b?b.subject:'');
+  document.getElementById('rm-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a: '+(b?sName(b):'');
   document.getElementById('rm-sub').textContent=(b?b.teacher:'')+(ns?' | '+ns+'\u0e04\u0e19':'');
   document.getElementById('rm-srch').value='';
   selRoom=b&&b.room?b.room:null;
@@ -1946,7 +1945,7 @@ function renderPickList(q,room){
   var cap=ROOM_CAP[room]||999;
   var av=blocks.filter(function(b){
     if(isFull(b)||isSelfStudy(b))return false; // วิชาเรียนด้วยตนเองไม่ใช้ห้อง
-    if(q&&b.subject.toLowerCase().indexOf(q)<0&&b.teacher.toLowerCase().indexOf(q)<0&&(b.groups||[]).join().indexOf(q)<0)return false;
+    if(q&&sName(b).toLowerCase().indexOf(q)<0&&b.teacher.toLowerCase().indexOf(q)<0&&(b.groups||[]).join().indexOf(q)<0)return false;
     return true;
   });
   var el=document.getElementById('pick-list');
@@ -1955,7 +1954,7 @@ function renderPickList(q,room){
   av.forEach(function(b){
     var groups=b.groups||[b.classGroup], ns=nSt(groups), over=ns>cap;
     h+='<div style="padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);cursor:pointer;'+(over?'border-color:var(--red-mid);background:var(--red-bg)':'')+'" onclick="pickSubj(\''+b.id+'\')" onmouseover="this.style.borderColor=\'var(--blue)\'" onmouseout="this.style.borderColor=\''+(over?'var(--red-mid)':'var(--line)')+'\'">'
-      +'<div style="font-size:12px;font-weight:600">'+esc(b.subject)+'</div>'
+      +'<div style="font-size:12px;font-weight:600">'+esc(sName(b))+'</div>'
       +'<div style="font-size:10px;color:var(--ink3)">'+esc(b.teacher)+' | '+groups.join(', ')+'</div>'
       +'<div style="font-size:10px;'+(over?'color:var(--red);font-weight:600':'color:var(--ink3)')+'">'+ns+'\u0e04\u0e19 / \u0e2b\u0e49\u0e2d\u0e07 '+cap+'\u0e04\u0e19'+(over?' ⚠ \u0e40\u0e01\u0e34\u0e19\u0e04\u0e27\u0e32\u0e21\u0e08\u0e38':'')+' | \u0e40\u0e2b\u0e25\u0e37\u0e2d '+b.periodsPerWeek+'\u0e04\u0e32\u0e1a</div>'
       +'</div>';
@@ -1987,7 +1986,7 @@ function openRoomModal(bid){
   roomCtx={bid:bid};selRoom=null;
   var b=gB(bid);
   var groups=b?b.groups||[b.classGroup]:[], ns=nSt(groups);
-  document.getElementById('rm-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07: '+(b?b.subject:'');
+  document.getElementById('rm-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e2b\u0e49\u0e2d\u0e07: '+(b?sName(b):'');
   document.getElementById('rm-sub').textContent=(b?b.teacher:'')+(ns?' | '+ns+'\u0e04\u0e19':'');
   document.getElementById('rm-srch').value='';
   renderRoomList('',ns);
@@ -2364,7 +2363,7 @@ function showImportPreview(p){
     +'<div style="max-height:260px;min-height:120px;overflow:auto;border:1px solid var(--line);border-radius:var(--r);flex-shrink:0">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="'+th+'">\u0e27\u0e34\u0e0a\u0e32</th><th style="'+th+'">\u0e04\u0e23\u0e39</th><th style="'+th+'">\u0e01\u0e25\u0e38\u0e48\u0e21\u0e40\u0e23\u0e35\u0e22\u0e19</th><th style="'+th+';text-align:center">\u0e04\u0e32\u0e1a</th><th style="'+th+'">\u0e2b\u0e49\u0e2d\u0e07</th></tr>';
   p.blocks.forEach(function(b){
-    h+='<tr style="border-top:1px solid var(--line2)"><td style="'+td+'">'+esc(b.subject)+'</td><td style="'+td+'">'+esc(b.teacher)+'</td>'
+    h+='<tr style="border-top:1px solid var(--line2)"><td style="'+td+'">'+esc(sName(b))+'</td><td style="'+td+'">'+esc(b.teacher)+'</td>'
       +'<td style="'+td+'">'+esc(b.groups.map(shortCls).join(' + '))+'</td><td style="'+td+';text-align:center">'+b.periodsPerWeek+'</td>'
       +'<td style="'+td+';color:'+(b.room?'inherit':'var(--ink3)')+'">'+esc(b.selfStudy?'\u0e40\u0e23\u0e35\u0e22\u0e19\u0e14\u0e49\u0e27\u0e22\u0e15\u0e19\u0e40\u0e2d\u0e07':b.room2?b.room+' / '+b.room2:(b.room||'\u2014'))+'</td></tr>';
   });
@@ -4212,7 +4211,7 @@ function pmBuildTbl(pv,sel){
           if(!show)return;
           var fc=b.faculty||'';
           var fcls=fc.indexOf('\u0e2d\u0e38\u0e15\u0e2a\u0e32\u0e2b')>=0?'fi':fc.indexOf('\u0e1a\u0e23\u0e34\u0e2b\u0e32\u0e23')>=0?'fb':fc.indexOf('\u0e40\u0e17\u0e04')>=0?'ft':'fo';
-          h+='<div class="ce '+fcls+'"><span class="ce-sub" style="white-space:normal">'+esc(b.subject)+'</span>'
+          h+='<div class="ce '+fcls+'"><span class="ce-sub" style="white-space:normal">'+esc(sName(b))+'</span>'
             +(pv==='teacher'?
               '<span class="ce-inf">'+esc(entRooms(r,e))+'<b style="float:right"> '+esc(grps.join(', '))+'</b></span>':
               '<span class="ce-inf">'+(isSelfStudy(b)?'เรียนด้วยตนเอง':esc(b.teacher.substring(0,12))+('<b style="float:right"> '+esc(entRooms(r,e))+'</b>'))+'</span>'
@@ -4344,7 +4343,7 @@ function buildLetterheadHtml(pv,item){
   var stamp='';
   if(PRINT_ISSUED||PRINT_EFFECTIVE){
     stamp='<div class="pp-stamp">'+esc(PRINT_ISSUED)+(PRINT_EFFECTIVE?' (เริ่มประกาศใช้ '+esc(PRINT_EFFECTIVE)+')':'')
-      +'<span class="pp-stamp-box"></span></div>';
+      +'</div>';
   }
   return '<div class="print-page-hdr">'+stamp
     +'<div class="pp-title-wrap">'
@@ -4366,18 +4365,87 @@ function buildSignatureHtml(){
     +'</div>';
 }
 function fmtT(t){ return (t||'').replace(':','.'); } // เวลาแบบเอกสารทางการ ใช้จุดแทนโคลอน เช่น 08.15
+// ═══ ชื่อวิชา + การตัดบรรทัดบนหน้าพิมพ์ ═══
+// ผู้ใช้ใส่ | ในชื่อวิชาเพื่อกำหนดจุดตัดบรรทัดตอนพิมพ์เองได้ (เช่น การเป็น|ผู้ประกอบการ) — ที่อื่นแสดงโดยไม่มี |
+function stripBreaks(s){return String(s||'').replace(/\s*\|\s*/g,function(m){return /\s/.test(m)?' ':'';});}
+function sName(b){return stripBreaks(b&&b.subject);}
+function ppSubHtml(raw){return '<div class="pp-sub" data-n="'+esc(raw)+'">'+esc(stripBreaks(raw))+'</div>';}
+// คำประสมที่ตัวตัดคำของเบราว์เซอร์แยกย่อยเกินไป (พื้น|ฐาน, เบื้อง|ต้น) — ห้ามตัดกลางคำเหล่านี้
+var TH_NOBREAK=['พื้นฐาน','เบื้องต้น','ประจำวัน','อาชีวอนามัย','ลูกเสือ','เนตรนารี','โครงงาน','ศีลธรรม',
+  'ผู้ประกอบการ','ปฏิบัติการ','หน้าที่พลเมือง','ทักษะชีวิต','ภาษาไทย','ภาษาอังกฤษ','ภาษาจีน','ภาษาญี่ปุ่น','ภาษาเกาหลี',
+  'ภาษาต่างประเทศ','ยานยนต์','สารสนเทศ','ผลผลิต','พลานามัย','วิสามัญ','องค์การวิชาชีพ','โลหะแผ่น','วงจรไฟฟ้า','เครื่องกล',
+  'เครื่องยนต์','สังคมศึกษา','พลศึกษา','สุขศึกษา','วิทยาการ','อินเทอร์เน็ต','แอปพลิเคชัน','เว็บไซต์'];
+// คำเชื่อม/คำนำหน้าคำนาม — ติดกับคำถัดไปเสมอ และเป็นจุดตัดที่อ่านลื่น (ตัดก่อนคำเหล่านี้)
+var TH_LEAD=['เพื่อ','และ','สำหรับ','ใน','ของ','กับ','ด้วย','หรือ','ตาม','แห่ง','โดย','การ','ความ','ผู้','นัก'];
+var _thSeg=null;
+// แบ่งชื่อเป็นหน่วยที่ห้ามตัดกลาง {t:ข้อความ, c:ค่าปรับถ้าตัดก่อนหน่วยนี้ (0=ตัดแล้วอ่านลื่น 1=พอได้)}
+function ppUnits(raw){
+  raw=String(raw||'').trim();
+  if(raw.indexOf('|')>=0) return raw.split('|').map(function(t){return {t:t.trim(),c:0};}).filter(function(u){return u.t;});
+  if(!_thSeg){ if(!window.Intl||!Intl.Segmenter)return null; _thSeg=new Intl.Segmenter('th',{granularity:'word'}); }
+  var tk=Array.from(_thSeg.segment(raw),function(s){return s.segment;}), tok=[];
+  for(var i=0;i<tk.length;i++){ // รวมคำประสมที่อยู่ในรายการ (เลือกที่ยาวที่สุด)
+    var best=i;
+    for(var j=i+1;j<tk.length&&j<i+6;j++)if(TH_NOBREAK.indexOf(tk.slice(i,j+1).join(''))>=0)best=j;
+    tok.push(tk.slice(i,best+1).join(''));i=best;
+  }
+  var units=[],sp=false,glue=false;
+  tok.forEach(function(t,k){
+    if(/^\s+$/.test(t)){sp=true;glue=false;return;}
+    var last=units[units.length-1], rest=tok.slice(k+1).join('').trim();
+    // ติดกับหน่วยก่อนหน้า: ต่อจากคำเชื่อม / เลขสั้นท้ายชื่อ (เช่น "ภาษาอังกฤษ 2") / "การ" "ความ" ที่เป็นคำท้ายชื่อ
+    if(last&&((glue&&!sp)||/^[0-9๐-๙IVX]{1,3}$/.test(t)||(!rest&&(t==='การ'||t==='ความ'))))last.t+=(sp?' ':'')+t;
+    else units.push({t:(sp?' ':'')+t,c:(sp||TH_LEAD.indexOf(t)>=0)?0:1});
+    glue=TH_LEAD.indexOf(t)>=0; sp=false;
+  });
+  return units;
+}
+var _ppCtx=null;
+// จัดชื่อวิชาในช่องให้ตัดบรรทัดตรงจุดที่อ่านลื่น ไม่เกิน 2 บรรทัด — ถ้าไม่พอให้ย่อตัวอักษร (ต่ำสุด 70%)
+function layoutPpSub(el){
+  var raw=el.getAttribute('data-n');
+  el.style.fontSize='';el.textContent=stripBreaks(raw);
+  var units=ppUnits(raw);if(!units||!units.length)return;
+  var W=el.clientWidth*0.97;if(!W)return;
+  var cs=getComputedStyle(el),base=parseFloat(cs.fontSize);
+  if(!_ppCtx)_ppCtx=document.createElement('canvas').getContext('2d');
+  function join(a,b){return units.slice(a,b).map(function(u){return u.t;}).join('').trim();}
+  function best(n,size){ // วิธีแบ่ง n บรรทัดที่ดีที่สุด: ทุกบรรทัดไม่เกินความกว้างช่อง ตัดตรงจุดที่อ่านลื่น และยาวใกล้เคียงกัน
+    _ppCtx.font=cs.fontWeight+' '+size+'px '+cs.fontFamily;
+    var res=null;
+    (function go(start,left,lines,pen){
+      if(left===1){
+        var ls=lines.concat([join(start,units.length)]);
+        var ws=ls.map(function(l){return _ppCtx.measureText(l).width;});
+        var mx=Math.max.apply(null,ws);if(mx>W)return;
+        var score=pen*W*0.35+mx-Math.min.apply(null,ws);
+        if(!res||score<res.score)res={score:score,lines:ls};
+        return;
+      }
+      for(var e=start+1;e<=units.length-left+1;e++)go(e,left-1,lines.concat([join(start,e)]),pen+units[e].c);
+    })(0,Math.min(n,units.length),[],0);
+    return res;
+  }
+  var min=base*0.7,step=0.5*96/72,r=null,size;
+  for(size=base;size>=min-0.01;size-=step){ r=best(1,size)||best(2,size); if(r)break; }
+  if(!r){size=min;r=best(3,size);}
+  if(size<base-0.01)el.style.fontSize=size+'px';
+  if(r)el.innerHTML=r.lines.map(function(l){return '<span style="white-space:nowrap">'+esc(l)+'</span>';}).join('<br>');
+}
 // ย่อหน้าพิมพ์ให้พอดี A4 แนวนอน 1 แผ่น (พื้นที่พิมพ์ 281×188 มม. ตาม @page margin)
 // ขยายความกว้างก่อนย่อ เพื่อให้ตารางกว้างเต็มกระดาษหลังย่อ และข้อความตัดบรรทัดน้อยลง
 function fitPrintPage(pg){
   var W=281,H=188,mm=96/25.4;
-  function fits(z){pg.style.zoom='';pg.style.width=(W/z)+'mm';return pg.offsetHeight/mm*z<=H;}
+  // เส้นตารางหนา 1.5pt หลังย่อเสมอ (หนาขึ้นก่อนย่อ ไม่ให้เส้นบางจนจางเมื่อย่อมาก)
+  function fits(z){pg.style.zoom='';pg.style.width=(W/z)+'mm';pg.style.setProperty('--bw',(1.5/z)+'pt');layoutPpSubs();return pg.offsetHeight/mm*z<=H;}
+  function layoutPpSubs(){pg.querySelectorAll('.pp-sub').forEach(layoutPpSub);} // ความกว้างช่องเปลี่ยนตามอัตราย่อ จึงจัดบรรทัดใหม่ทุกครั้ง
   var z=1;
   if(!fits(1)){ // หาอัตราย่อที่ใหญ่ที่สุดที่ยังพอดีหน้า (binary search)
     var lo=0.4,hi=1;
     for(var k=0;k<7;k++){var mid=(lo+hi)/2;if(fits(mid))lo=mid;else hi=mid;}
     z=lo;
   }
-  pg.style.width=(W/z)+'mm';
+  pg.style.width=(W/z)+'mm';pg.style.setProperty('--bw',(1.5/z)+'pt');layoutPpSubs();
   pg.style.zoom=z<1?String(z):'';
 }
 function pmExec(){
@@ -4414,7 +4482,7 @@ function pmBuildTbl(pv,sel){
   var h='<thead><tr><th class="rh">วัน/เวลา</th>';
   PD.forEach(function(p){
     brksBefore(p.id).forEach(function(){h+='<th class="brk"></th>';});
-    h+=p.id===lunchP?'<th class="lunch-col"></th>':'<th class="ph">'+fmtT(p.t)+' - '+fmtT(p.tEnd||'')+'</th>';
+    h+=p.id===lunchP?'<th class="lunch-col">พักเที่ยง</th>':'<th class="ph">'+fmtT(p.t)+' - '+fmtT(p.tEnd||'')+'</th>';
   });
   brksBefore(BRK_END).forEach(function(){h+='<th class="brk"></th>';});
   h+='</tr></thead><tbody>';
@@ -4424,7 +4492,7 @@ function pmBuildTbl(pv,sel){
     var cells=PD.map(function(p){
       if(p.id===lunchP)return {lunch:true,key:null};
       var fb=isFB(d,p.id);
-      if(fb)return {cls:'fblock',key:'fb|'+fb,html:'<div>'+esc(fb)+'</div>'};
+      if(fb)return {cls:'fblock',key:'fb|'+fb,html:ppSubHtml(fb)};
       var items=[];
       ttRooms().forEach(function(r){
         var e=(tt[r]&&tt[r][d]&&tt[r][d][p.id])||null;if(!e)return;if(pv!=='room'&&e.shadowOf)return;
@@ -4432,12 +4500,12 @@ function pmBuildTbl(pv,sel){
         var grps=e.groups||b.groups||[b.classGroup];
         var show=pv==='room'?r===sel:pv==='teacher'?b.teacher===sel:grps.indexOf(sel)>=0;
         if(!show)return;
-        var gtxt=grps.map(shortCls).join(' + '), lines=[b.subject];
+        var gtxt=grps.map(shortCls).join(' + '), lines=[];
         if(isSelfStudy(b))lines.push('เรียนด้วยตนเอง');
         else if(pv==='class'){if(grps.length>1)lines.push(gtxt);lines.push(entRooms(r,e));if(b.teacher)lines.push(b.teacher);}
         else if(pv==='room'){lines.push(gtxt);if(b.teacher)lines.push(b.teacher);}
         else{lines.push(gtxt);lines.push(entRooms(r,e));}
-        items.push({key:b.id+'|'+r,html:lines.map(function(t){return '<div>'+esc(t)+'</div>';}).join('')});
+        items.push({key:b.id+'|'+r,html:ppSubHtml(b.subject)+lines.map(function(t){return '<div>'+esc(t)+'</div>';}).join('')});
       });
       return {cls:'',key:items.length===1?items[0].key:null,html:items.map(function(it){return it.html;}).join('<div class="pc-sep"></div>')};
     });
@@ -4445,7 +4513,7 @@ function pmBuildTbl(pv,sel){
       if(di===0)brksBefore(PD[i].id).forEach(function(bk){h+=brkTd(bk);});
       var c=cells[i];
       if(c.lunch){
-        if(di===0)h+='<td class="lunch-col" rowspan="'+DY.length+'"><div class="brk-inner">พักเที่ยง เวลา '+fmtT(PD[i].t)+' - '+fmtT(PD[i].tEnd||'')+' น.</div></td>';
+        if(di===0)h+='<td class="lunch-col" rowspan="'+DY.length+'"><div class="brk-inner">เวลา '+fmtT(PD[i].t)+' - '+fmtT(PD[i].tEnd||'')+' น.</div></td>';
         continue;
       }
       var span=1;
@@ -4518,7 +4586,7 @@ function buildXlsxRows(pv,sel){
         var grps=e.groups||b.groups||[b.classGroup];
         var show=pv==='room'?r===sel:pv==='teacher'?b.teacher===sel:grps.indexOf(sel)>=0;
         if(!show)return;
-        var lines=[b.subject];
+        var lines=[sName(b)];
         if(pv==='teacher'){
           lines.push(entRooms(r,e));
           if(grps.length)lines.push(grps.join(', '));
@@ -4558,7 +4626,7 @@ function pmExecXLSX(){
           return pv==='room'?r===s:pv==='teacher'?b.teacher===s:grps.indexOf(s)>=0;
         });
         if(!show)return;
-        summaryRows.push([d,'คาบ '+p.id,entRooms(r,e),b.subject,isSelfStudy(b)?'เรียนด้วยตนเอง':b.teacher,grps.join(', ')]);
+        summaryRows.push([d,'คาบ '+p.id,entRooms(r,e),sName(b),isSelfStudy(b)?'เรียนด้วยตนเอง':b.teacher,grps.join(', ')]);
       });
     });
   });
