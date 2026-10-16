@@ -446,6 +446,7 @@ input,select,textarea{font-family:inherit}
   header,aside,.modal-bg,.toast,.conflict-box,#print-modal,
   .gw,.workspace,#server-down-banner,#new-version-banner{display:none!important}
   #print-container{display:block!important}
+  html,body,#print-container,.print-page{background:#fff!important} /* ไม่ให้สีพื้นหลังของหน้าโปรแกรมติดไปในกระดาษ */
 }
 /* หน้าพิมพ์ตารางเรียน — ใช้ทั้งตอนพิมพ์และตอนวัดขนาดบนจอก่อนพิมพ์ (#print-container ซ่อนไว้ตามปกติ) */
 #print-container *{font-family:'Angsana New','AngsanaUPC','TH Sarabun New','Sarabun',serif!important;color:#000}
@@ -455,12 +456,13 @@ input,select,textarea{font-family:inherit}
 #print-container .pp-title-wrap{display:inline-flex;align-items:center;gap:14pt}
 #print-container .pp-title{text-align:center;font-size:18pt;font-weight:700;line-height:1.15}
 #print-container .pp-stamp{position:absolute;top:0;right:0;font-size:13.5pt}
-#print-container .tt{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;border:var(--bw,1.5pt) solid #000!important}
-#print-container .tt th,#print-container .tt td{border:var(--bw,1.5pt) solid #000!important;text-align:center!important;vertical-align:middle!important;padding:2pt 4pt!important;width:auto!important;overflow:visible!important}
+/* เส้นตาราง: แต่ละช่องวาดเส้นขวา+ล่างของตัวเอง (ตารางวาดเส้นซ้าย+บน) แทนการใช้เส้นร่วมแบบ collapse — ตอนย่อภาพตัวอย่างก่อนพิมพ์ พื้นหลังช่องข้าง ๆ จะได้ไม่ทับเส้นจนหาย */
+#print-container .tt{width:100%!important;table-layout:fixed!important;border-collapse:separate!important;border-spacing:0!important;border:0!important;border-left:var(--bw,1.5pt) solid #000!important;border-top:var(--bw,1.5pt) solid #000!important}
+#print-container .tt th,#print-container .tt td{border:0!important;border-right:var(--bw,1.5pt) solid #000!important;border-bottom:var(--bw,1.5pt) solid #000!important;text-align:center!important;vertical-align:middle!important;padding:2pt 4pt!important;width:auto!important;overflow:visible!important}
 #print-container .tt th{background:#EEECE1!important;font-size:14.5pt!important;font-weight:700!important;height:7.5mm}
 #print-container .tt th.rh,#print-container .tt td.rl{width:20mm!important;background:#EEECE1!important;font-size:17pt!important;font-weight:700!important}
-#print-container .tt td{height:24mm!important;font-size:14.5pt!important;font-weight:700!important;line-height:1.18!important;background:#fff!important}
-#print-container .tt td.fblock{background:#fff!important;font-size:17pt!important}
+#print-container .tt td{height:24mm!important;font-size:14.5pt!important;font-weight:700!important;line-height:1.18!important;background:transparent!important}
+#print-container .tt td.fblock{background:transparent!important;font-size:17pt!important}
 #print-container .tt th.brk,#print-container .tt td.brk{width:7mm!important;min-width:0!important;background:#EEECE1!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:16mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
@@ -4413,6 +4415,14 @@ function ppUnits(raw){
   });
   return units;
 }
+// ชื่อครูในช่องตารางที่พิมพ์ — เอาแค่ชื่อ ไม่เอานามสกุล และตัดอักษรย่อภาษาอังกฤษหน้าชื่อ
+// เช่น "อ.ธานินทร์ ประเสริฐอัง" → "อ.ธานินทร์", "อ.T.Paul Walmsley" → "อ.Paul" (หลายคนคั่นด้วย , หรือ /)
+function ppTeacher(t){
+  return String(t||'').split(/\s*[,\/]\s*/).map(function(s){
+    var first=s.trim().split(/\s+/)[0]||'';
+    return first.replace(/^(.*?\.)?((?:[A-Za-z]\.)+)(?=[A-Za-z])/,'$1');
+  }).filter(Boolean).join(', ');
+}
 // ชื่อครู: ตัดได้เฉพาะช่องว่างระหว่างชื่อกับนามสกุล ("ณ" และคำนำหน้าที่ลงท้ายด้วยจุด ติดกับคำถัดไป)
 function ppNameUnits(raw){
   var units=[],glue=false;
@@ -4531,7 +4541,7 @@ function pmBuildTbl(pv,sel){
         if(!show)return;
         var gtxt=grps.map(shortCls).join(' + '), html=ppSubHtml(b.subject);
         function ln(t){html+='<div>'+esc(t)+'</div>';}
-        function tch(){if(b.teacher)html+=ppSubHtml(b.teacher,'name');}
+        function tch(){if(b.teacher)html+=ppSubHtml(ppTeacher(b.teacher),'name');}
         if(isSelfStudy(b))ln('เรียนด้วยตนเอง');
         else if(pv==='class'){if(grps.length>1)ln(gtxt);ln(entRooms(r,e));tch();}
         else if(pv==='room'){ln(gtxt);tch();}
