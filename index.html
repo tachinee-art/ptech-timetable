@@ -995,6 +995,60 @@ var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 var currentUserEmail = null;
 var _rtChannel = null;
 var _lastKnownTs = 0; // ts ของ draft เวอร์ชันที่เราถืออยู่ — ใช้ตรวจว่ามีเวอร์ชันใหม่จากคนอื่นไหม
+// ═══ บันทึกพร้อมกันหลายคน: รวมงานรายช่อง (3-way merge) ═══
+// _baseData = ข้อมูล draft ฉบับเซิร์ฟเวอร์ที่หน้าจอนี้ "ซิงค์" ไว้ล่าสุด — ใช้ดูว่าเราแก้อะไร / คนอื่นแก้อะไร
+// _sid = รหัสหน้าจอนี้ (ต่อแท็บ) แยก "การบันทึกของหน้าจอนี้" ออกจากของแท็บ/เครื่องอื่น แม้ใช้บัญชีเดียวกัน
+var _baseData=null;
+var _sid=Math.random().toString(36).slice(2)+Date.now().toString(36);
+var _saveBusy=false,_saveAgain=false;
+function cloneJ(x){return x==null?x:JSON.parse(JSON.stringify(x));}
+function setBase(d){_baseData=d?cloneJ(d):null;}
+function stab(x){ // JSON ที่เรียง key แล้ว — เทียบค่าได้แม้ลำดับ key ต่างกัน
+  if(x===undefined)return 'u';
+  if(x===null||typeof x!=='object')return JSON.stringify(x);
+  if(Array.isArray(x))return '['+x.map(stab).join(',')+']';
+  return '{'+Object.keys(x).sort().map(function(k){return JSON.stringify(k)+':'+stab(x[k]);}).join(',')+'}';
+}
+function m3pick(b,l,s,st){ // เราไม่ได้แก้ → ใช้ของเซิร์ฟเวอร์ / คนอื่นไม่ได้แก้ → ใช้ของเรา / แก้ทั้งคู่ไม่ตรงกัน → ใช้ของเรา
+  var jb=stab(b),jl=stab(l),js=stab(s);
+  if(jl===jb)return s;
+  if(js===jb||js===jl)return l;
+  st.conflicts++;return l;
+}
+function m3map(b,l,s,st){
+  b=b||{};l=l||{};s=s||{};var out={},ks={};
+  [b,l,s].forEach(function(o){Object.keys(o).forEach(function(k){ks[k]=1;});});
+  Object.keys(ks).forEach(function(k){var v=m3pick(b[k],l[k],s[k],st);if(v!==undefined)out[k]=v;});
+  return out;
+}
+function m3list(b,l,s,st){
+  function set(a){var o={};(a||[]).forEach(function(x){o[x]=true;});return o;}
+  return Object.keys(m3map(set(b),set(l),set(s),st));
+}
+function flatPlaced(pl){ // {ห้อง:{วัน:{คาบ:ช่อง}}} → {"ห้อง|วัน|คาบ":ช่อง}
+  var o={};Object.keys(pl||{}).forEach(function(r){Object.keys(pl[r]||{}).forEach(function(d){Object.keys(pl[r][d]||{}).forEach(function(p){o[r+'\u0001'+d+'\u0001'+p]=pl[r][d][p];});});});
+  return o;
+}
+function unflatPlaced(f){
+  var o={};Object.keys(f).forEach(function(k){var a=k.split('\u0001');if(!o[a[0]])o[a[0]]={};if(!o[a[0]][a[1]])o[a[0]][a[1]]={};o[a[0]][a[1]][a[2]]=f[k];});
+  return o;
+}
+function mergeDraftData(base,local,server){
+  var st={conflicts:0},B=base||{},L=local||{},S=server||{},out=Object.assign({},L);
+  function byId(a){var o={};(a||[]).forEach(function(x){if(x&&x.id!=null)o[x.id]=x;});return o;}
+  out.placed=unflatPlaced(m3map(flatPlaced(B.placed),flatPlaced(L.placed),flatPlaced(S.placed),st));
+  var ub=m3map(byId(B.userBlocks),byId(L.userBlocks),byId(S.userBlocks),st);
+  out.userBlocks=Object.keys(ub).map(function(k){return ub[k];});
+  out.editedBlocks=m3map(B.editedBlocks,L.editedBlocks,S.editedBlocks,st);
+  out.deletedIds=m3list(B.deletedIds,L.deletedIds,S.deletedIds,st);
+  out.teachersAdded=m3list(B.teachersAdded,L.teachersAdded,S.teachersAdded,st);
+  out.teachersRemoved=m3list(B.teachersRemoved,L.teachersRemoved,S.teachersRemoved,st);
+  out.roomsAdded=m3map(B.roomsAdded,L.roomsAdded,S.roomsAdded,st);
+  out.roomsEditedCap=m3map(B.roomsEditedCap,L.roomsEditedCap,S.roomsEditedCap,st);
+  out.roomsRemoved=m3list(B.roomsRemoved,L.roomsRemoved,S.roomsRemoved,st);
+  return {data:out,conflicts:st.conflicts};
+}
+function draftBody(d){var c=Object.assign({},d||{});delete c.ts;delete c.sid;return stab(c);} // เนื้อหา draft ไม่รวมเวลา/รหัสหน้าจอ
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -2962,7 +3016,7 @@ function subscribeToDraft(draftId){
   _rtChannel = supabase.channel('draft-'+draftId)
     .on('postgres_changes',{event:'UPDATE',schema:'public',table:'drafts',filter:'id=eq.'+draftId},
       function(payload){
-        if(payload.new.updated_by===currentUserEmail) return;      // การแก้ของเราเอง
+        if(payload.new.data&&payload.new.data.sid===_sid) return; // การบันทึกของหน้าจอนี้เอง (แยกต่อแท็บ แม้ใช้บัญชีเดียวกัน)
         if(payload.new.ts && payload.new.ts<=_lastKnownTs) return;  // เก่ากว่าที่เรามีแล้ว
         showNewVersionBanner(payload.new.updated_by);               // แจ้งเตือน + ปุ่มโหลดใหม่
       }).subscribe();
@@ -3151,34 +3205,64 @@ function loadDraftData(data){
 }
 
 async function saveDraft(){
+  // กันบันทึกซ้อนกันในหน้าจอเดียว — ถ้ากำลังบันทึกอยู่ ให้บันทึกต่ออีกรอบเมื่อเสร็จ
+  if(_saveBusy){_saveAgain=true;return;}
+  _saveBusy=true;
   var name=document.getElementById('draft-name').value.trim()||'Draft';
-  // Show saving indicator
   var dot=document.getElementById('sync-dot'),lbl=document.getElementById('sync-label');
   dot.className='sync-dot saving';
   lbl.textContent='กำลังบันทึก...';
-  var data=collectDraftData();
-  try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(data));localStorage.removeItem('ptech_snapshot');}catch(e0){}
+  var cnt=_dirtyCount; // จำไว้ว่าตอนเริ่มบันทึกมีการแก้กี่ครั้ง — ถ้าลากวางระหว่างบันทึก จะได้ไม่นับว่าบันทึกแล้ว
+  var local=collectDraftData(); local.sid=_sid;
+  try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(local));localStorage.removeItem('ptech_snapshot');}catch(e0){}
   rememberOpenDraft(); // จำ draft นี้ไว้ ให้รีเฟรชแล้วกลับมาที่ draft เดิม
   try{
-    var res=await supabase.from('drafts').upsert({id:_currentDraftId,term_id:_currentTermId,name:name,data:data,ts:data.ts,updated_by:currentUserEmail});
-    if(res.error) throw res.error;
-    setDirty(false);
+    // ดึงฉบับล่าสุดบนเซิร์ฟเวอร์ → รวมเฉพาะช่องที่หน้าจอนี้แก้ → เขียนกลับเฉพาะเมื่อไม่มีใครบันทึกแทรก (ไม่งั้นรวมใหม่)
+    var final=null,conflicts=0;
+    for(var attempt=0;attempt<4&&!final;attempt++){
+      var cur=await supabase.from('drafts').select('data,ts').eq('id',_currentDraftId).maybeSingle();
+      if(cur.error)throw cur.error;
+      var ts=Date.now(),row={term_id:_currentTermId,name:name,ts:ts,updated_by:currentUserEmail};
+      if(!cur.data){ // draft ใหม่ ยังไม่เคยบันทึก
+        var cand=Object.assign({},local,{ts:ts});
+        var ins=await supabase.from('drafts').upsert(Object.assign({id:_currentDraftId,data:cand},row));
+        if(ins.error)throw ins.error;
+        final=cand;break;
+      }
+      var mg=mergeDraftData(_baseData,local,cur.data.data||{});
+      var cand2=Object.assign(mg.data,{ts:ts,sid:_sid});
+      var up=await supabase.from('drafts').update(Object.assign({data:cand2},row))
+        .eq('id',_currentDraftId).eq('ts',cur.data.ts).select('id');
+      if(up.error)throw up.error;
+      if(up.data&&up.data.length){final=cand2;conflicts=mg.conflicts;}
+    }
+    if(!final)throw new Error('มีผู้ใช้อื่นบันทึกพร้อมกันหลายครั้ง — จะลองใหม่อัตโนมัติ');
+    var pulled=draftBody(final)!==draftBody(local); // มีงานของคนอื่นรวมเข้ามาด้วยไหม
+    if(_dirtyCount===cnt){
+      if(pulled)loadDraftData(final); // แสดงงานของคนอื่นบนจอนี้ทันที
+      setDirty(false);
+      setBase(final);
+    }else{
+      // มีการแก้เพิ่มระหว่างบันทึก — ยังไม่ดึงงานคนอื่นมาทับจอ ฐานคือสิ่งที่จอนี้มีตอนเริ่มบันทึก รอบถัดไปจะรวมให้ครบ
+      setBase(local);
+    }
     hideServerDownBanner(); // เซฟขึ้นคลาวด์ได้ = เซิร์ฟเวอร์กลับมาแล้ว
-    markVersion(data.ts); hideNewVersionBanner(); // เวอร์ชันล่าสุดคือของเราเอง
-    // Update timestamp in UI
+    markVersion(final.ts); hideNewVersionBanner(); // เวอร์ชันล่าสุดบนเซิร์ฟเวอร์รวมงานเราแล้ว
     var now=new Date();
-    var ts=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
-    dot.className='sync-dot';
-    lbl.textContent='บันทึก '+ts;
-    // Update draft list timestamp
-    var pill=document.getElementById('sync-pill');
-    pill.title='บันทึกล่าสุด: '+ts;
-    toast('✓ บันทึกแล้ว — '+name);
+    var hhmm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+    if(!_dirty){dot.className='sync-dot';lbl.textContent='บันทึก '+hhmm;}
+    document.getElementById('sync-pill').title='บันทึกล่าสุด: '+hhmm;
+    if(conflicts)toast('บันทึกแล้ว — มี '+conflicts+' ช่องที่คุณกับผู้ใช้อื่นแก้พร้อมกัน ระบบใช้ของคุณ','warn');
+    else if(pulled)toast('✓ บันทึกแล้ว และรวมการแก้ของผู้ใช้อื่นเข้ามาด้วย');
+    else toast('✓ บันทึกแล้ว — '+name);
   }catch(err){
     dot.className='sync-dot offline';
     lbl.textContent='ออฟไลน์ — บันทึกในเครื่องเท่านั้น';
     showServerDownBanner(); // เซฟขึ้นคลาวด์ไม่ได้ = เซิร์ฟเวอร์อาจหลับ
     toast('บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (จะลองใหม่อัตโนมัติ): '+err.message,'warn');
+  }finally{
+    _saveBusy=false;
+    if(_saveAgain){_saveAgain=false;if(_dirty)setTimeout(saveDraft,0);}
   }
 }
 
@@ -3249,6 +3333,7 @@ async function loadDraft(id){
     hideNewVersionBanner();
     document.getElementById('draft-name').value=res.data.name||'Draft';
     loadDraftData(res.data.data);
+    setBase(res.data.data);
     subscribeToDraft(id);
     closeDraftsMgr();
     toast('โหลด Draft: '+(res.data.name||''));
@@ -3266,7 +3351,7 @@ async function deleteDraft(id){
 function newDraft(){
   _currentDraftId='draft_'+Date.now();
   rememberOpenDraft();
-  markVersion(Date.now()); hideNewVersionBanner();
+  markVersion(Date.now()); hideNewVersionBanner(); setBase(null);
   document.getElementById('draft-name').value='ตารางใหม่';
   initTT();blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   setDirty(false);render();closeDraftsMgr();toast('Draft ใหม่พร้อมแล้ว');
@@ -3346,7 +3431,7 @@ async function switchTerm(id){
       popAddForms();popViewSel();render();
     }
     rememberOpenDraft();
-    markVersion(last?last.ts:Date.now()); hideNewVersionBanner();
+    markVersion(last?last.ts:Date.now()); hideNewVersionBanner(); setBase(last?last.data:null);
     subscribeToDraft(_currentDraftId);
     closeTermsMgr();
     toast('สลับไปเทอม: '+res.data.name);
@@ -3491,6 +3576,7 @@ function importDraftFile(input){
       var res=await supabase.from('drafts').insert({id:_currentDraftId,term_id:_currentTermId,name:name,data:data,ts:Date.now(),updated_by:currentUserEmail});
       if(res.error){toast('บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ: '+res.error.message,'err');}
       loadDraftData(data);
+      setBase(data); markVersion(data.ts||Date.now());
       subscribeToDraft(_currentDraftId);
       toast('นำเข้า draft สำเร็จ: '+name,'ok');
     }catch(err){toast('ไฟล์ผิดพลาด: '+err.message,'err');}
@@ -3796,16 +3882,23 @@ function showNewVersionBanner(who){
   if(document.getElementById('new-version-banner'))return;
   var b=document.createElement('div');
   b.id='new-version-banner';
-  b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9998;background:var(--blue);color:#fff;'
+  // วางลอยกลางด้านล่าง เหนือแถบสถานะ — ไม่บังปุ่มบันทึกและชื่อ draft ที่แถบบน
+  b.style.cssText='position:fixed;bottom:48px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 24px);z-index:9998;'
+    +'background:var(--blue);color:#fff;border-radius:10px;'
     +'font-family:inherit;font-size:13px;font-weight:600;text-align:center;padding:9px 14px;'
-    +'box-shadow:0 2px 10px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+    +'box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
   b.innerHTML='🔄 มีเวอร์ชันใหม่'+(who?' จาก '+esc(who):'')+' — ผู้ใช้อื่นเพิ่งแก้ตารางนี้ '
     +'<button onclick="reloadForNewVersion()" style="background:#fff;color:var(--blue);border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-family:inherit">โหลดใหม่</button>';
   document.body.appendChild(b);
 }
 function hideNewVersionBanner(){ var b=document.getElementById('new-version-banner'); if(b)b.remove(); }
-function reloadForNewVersion(){
-  if(_dirty && !confirm('คุณมีงานที่ยังไม่บันทึก การโหลดใหม่จะทับงานที่ยังไม่บันทึกของคุณ\nต้องการโหลดเวอร์ชันใหม่ต่อหรือไม่?'))return;
+async function reloadForNewVersion(){
+  // บันทึกงานที่ค้างก่อน (ระบบรวมกับเวอร์ชันใหม่ให้) แล้วค่อยโหลดใหม่ — งานจึงไม่หาย
+  if(_dirty||_saveBusy){
+    while(_saveBusy)await new Promise(function(r){setTimeout(r,150);});
+    if(_dirty)await saveDraft();
+    if(_dirty&&!confirm('บันทึกงานที่ค้างไม่สำเร็จ ถ้าโหลดใหม่ตอนนี้ งานที่ยังไม่บันทึกจะหาย\nต้องการโหลดใหม่ต่อหรือไม่?'))return;
+  }
   location.reload();
 }
 // polling สำรอง — เผื่อ Supabase Realtime ไม่ได้เปิด ก็ยังตรวจเจอเวอร์ชันใหม่
@@ -3814,7 +3907,7 @@ async function pollNewVersion(){
   if(document.getElementById('new-version-banner')) return; // แจ้งไปแล้ว
   try{
     var r=await supabase.from('drafts').select('ts,updated_by').eq('id',_currentDraftId).maybeSingle();
-    if(r&&r.data&&r.data.ts>_lastKnownTs&&r.data.updated_by!==currentUserEmail){
+    if(r&&r.data&&r.data.ts>_lastKnownTs){ // บันทึกของหน้าจอนี้อัปเดต _lastKnownTs เสมอ จึงไม่เด้งเตือนตัวเอง
       showNewVersionBanner(r.data.updated_by);
     }
   }catch(e){}
@@ -3853,7 +3946,7 @@ async function bootApp(){
       last=res.data && res.data[0];
     }
     if(!last){
-      _currentDraftId='draft_'+Date.now();
+      _currentDraftId='draft_'+Date.now(); setBase(null);
       rememberOpenDraft();
       document.getElementById('draft-name').value='ตารางใหม่';
       dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
@@ -3888,6 +3981,7 @@ async function bootApp(){
       localStorage.removeItem('ptech_snapshot');
     }
     loadDraftData(draftData);
+    setBase(last.data); // ฐาน = ฉบับบนเซิร์ฟเวอร์ (ถ้ากู้งานค้างในเครื่องมา ส่วนต่างจะถูกนับเป็นงานของเราตอนบันทึก)
     subscribeToDraft(_currentDraftId);
     dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
   }catch(e){
