@@ -1090,21 +1090,28 @@ async function syncFromServer(who){
     showSyncStatus(r.data.updated_by||who);
   }catch(e){}
 }
-// ตรวจโปรแกรมเวอร์ชันใหม่ (โค้ดเว็บถูกอัปเดต) — เทียบ ETag ของหน้าเว็บที่เปิดอยู่กับบนเซิร์ฟเวอร์
-var _appTag=null;
-async function fetchAppTag(fresh){
-  try{
-    var r=fresh?await fetch(location.pathname+'?v='+Date.now(),{method:'HEAD',cache:'no-store'})
-               :await fetch(location.pathname,{cache:'force-cache'});
-    return r.headers.get('etag')||r.headers.get('last-modified')||null;
-  }catch(e){return null;}
+// ตรวจโปรแกรมเวอร์ชันใหม่ (โค้ดเว็บถูกอัปเดต) — เทียบโค้ด <script>/<style> ของหน้าที่เปิดอยู่กับไฟล์ล่าสุดบนเซิร์ฟเวอร์
+// (ไม่เทียบ ETag กับแคชของเบราว์เซอร์ เพราะหลังโหลดใหม่ผ่าน ?v= แคชของ URL เดิมยังเป็นเวอร์ชันเก่า ทำให้แถบเด้งซ้ำไม่จบ)
+var _appSrvTag=null,_appStale=false;
+function appParts(){
+  return Array.prototype.map.call(document.querySelectorAll('script:not([src]),style'),function(el){return el.textContent.replace(/\r\n?/g,'\n');})
+    .filter(function(t){return t.trim().length>200;});
 }
-fetchAppTag(false).then(function(t){_appTag=t;});
-setInterval(async function(){
-  if(!_appTag)return;
-  var t=await fetchAppTag(true);
-  if(t&&t!==_appTag)showNewVersionBanner('app');
-},120000); // เช็คทุก 2 นาที
+async function checkAppVersion(){
+  if(_appStale){showNewVersionBanner('app');return;}
+  try{
+    var url=location.pathname+'?v='+Date.now();
+    var h=await fetch(url,{method:'HEAD',cache:'no-store'});if(!h.ok)return;
+    var tag=h.headers.get('etag')||h.headers.get('last-modified');
+    if(tag&&tag===_appSrvTag)return; // ไฟล์บนเซิร์ฟเวอร์ไม่เปลี่ยนตั้งแต่ตรวจครั้งก่อน — ไม่ต้องโหลดทั้งไฟล์
+    var r=await fetch(url,{cache:'no-store'});if(!r.ok)return;
+    var html=(await r.text()).replace(/\r\n?/g,'\n');
+    _appSrvTag=tag;
+    if(appParts().some(function(p){return html.indexOf(p)<0;})){_appStale=true;showNewVersionBanner('app');}
+  }catch(e){}
+}
+setTimeout(checkAppVersion,5000);      // ตรวจครั้งแรกหลังเปิดหน้า (เผื่อเบราว์เซอร์เปิดจากแคชเก่า)
+setInterval(checkAppVersion,120000);   // แล้วเช็คทุก 2 นาที
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -3788,9 +3795,9 @@ setInterval(function(){if(_dirty)saveDraft();},5000);
 // Save on page close/refresh
 window.addEventListener('beforeunload',function(e){
   // ยังบันทึกไม่เสร็จ → ให้เบราว์เซอร์ถามก่อนออก และเก็บสำเนาฉุกเฉินไว้ให้กู้คืนตอนเปิดใหม่
-  if((_dirty||_saveBusy)&&!_leaving){
-    saveSnapshot();
-    e.preventDefault(); e.returnValue='';
+  if(_dirty||_saveBusy){
+    saveSnapshot(); // เก็บสำเนาไว้เสมอ แม้ผู้ใช้ยืนยันโหลดใหม่จากแถบแจ้งเตือนแล้ว
+    if(!_leaving){e.preventDefault(); e.returnValue='';}
   }
   if(_dirty){
     // Synchronous localStorage write (allowed in beforeunload)
@@ -3963,13 +3970,22 @@ function showNewVersionBanner(kind){ // kind: 'term' = การตั้งค�
   document.body.appendChild(b);
 }
 function hideNewVersionBanner(){ var b=document.getElementById('new-version-banner'); if(b)b.remove(); }
+var _reloading=false;
 async function reloadForNewVersion(){
+  if(_reloading)return; // กันกดซ้ำระหว่างกำลังบันทึก
+  _reloading=true;
+  var btn=document.querySelector('#new-version-banner button');
+  if(btn){btn.disabled=true;btn.textContent='กำลังบันทึก…';}
   // บันทึกงานที่ค้างก่อน (ระบบรวมกับเวอร์ชันใหม่ให้) แล้วค่อยโหลดใหม่ — งานจึงไม่หาย
   if(_dirty||_saveBusy){
-    while(_saveBusy)await new Promise(function(r){setTimeout(r,150);});
-    if(_dirty)await saveDraft();
-    if(_dirty&&!confirm('บันทึกงานที่ค้างไม่สำเร็จ ถ้าโหลดใหม่ตอนนี้ งานที่ยังไม่บันทึกจะหาย\nต้องการโหลดใหม่ต่อหรือไม่?'))return;
+    for(var w=0;_saveBusy&&w<100;w++)await new Promise(function(r){setTimeout(r,150);}); // รอได้ไม่เกิน 15 วิ
+    if(_dirty&&!_saveBusy)await saveDraft();
+    if((_dirty||_saveBusy)&&!confirm('บันทึกงานที่ค้างไม่สำเร็จ ถ้าโหลดใหม่ตอนนี้ งานที่ยังไม่บันทึกจะหาย\nต้องการโหลดใหม่ต่อหรือไม่?')){
+      _reloading=false;if(btn){btn.disabled=false;btn.textContent='โหลดใหม่';}
+      return;
+    }
   }
+  if(btn)btn.textContent='กำลังโหลด…';
   _leaving=true;
   location.replace(location.pathname+'?v='+Date.now()); // เลี่ยงแคชของเบราว์เซอร์ ให้ได้โปรแกรมเวอร์ชันล่าสุดแน่นอน
 }
