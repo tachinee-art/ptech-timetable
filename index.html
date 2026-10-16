@@ -1049,6 +1049,61 @@ function mergeDraftData(base,local,server){
   return {data:out,conflicts:st.conflicts};
 }
 function draftBody(d){var c=Object.assign({},d||{});delete c.ts;delete c.sid;return stab(c);} // เนื้อหา draft ไม่รวมเวลา/รหัสหน้าจอ
+// ═══ ซิงค์เบื้องหลังแบบเรียลไทม์ — งานของคนอื่นใน draft นี้ขึ้นบนจอเอง ไม่ต้องโหลดใหม่ ═══
+var _termRev=0;        // เวอร์ชันการตั้งค่าเทอมที่หน้าจอนี้ใช้อยู่ (เปลี่ยนเมื่อมีการแก้ระดับเทอม)
+var _leaving=false;    // กำลังโหลดหน้าใหม่ตามแถบแจ้งเตือน — ไม่ต้องถามยืนยันซ้ำ
+var _syncTimer=null,_lastSyncToast=0,_needPull=false; // _needPull = บนเซิร์ฟเวอร์มีงานคนอื่นที่ยังไม่ได้วาดลงจอนี้
+function uiBusy(){ // ผู้ใช้กำลังทำอะไรค้างอยู่ — ห้ามวาดตารางใหม่ทับ
+  if(drag)return true;
+  if(document.querySelector('.overlay.open'))return true;
+  var pm=document.getElementById('PM');if(pm&&pm.style.display==='block')return true;
+  var a=document.activeElement;
+  return !!(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&a.id!=='draft-name');
+}
+function scheduleSync(){clearTimeout(_syncTimer);_syncTimer=setTimeout(syncFromServer,1500);}
+function applyServerDraft(d){ // วางข้อมูลจากเซิร์ฟเวอร์ลงจอ โดยคงค่าที่กรอกค้างในฟอร์มเพิ่มรายวิชาไว้
+  var ids=['as','at-sel','ar-sel','aperiods','af-sel'],keep={};
+  ids.forEach(function(id){var el=document.getElementById(id);if(el)keep[id]=el.value;});
+  var chk=document.getElementById('as-self'),selfOn=chk&&chk.checked,grps=getSelGrps('add-grp-grid');
+  loadDraftData(d);
+  ids.forEach(function(id){var el=document.getElementById(id);if(el&&keep[id]!=null)el.value=keep[id];});
+  buildGrpGrid('add-grp-grid',grps);
+  if(chk){chk.checked=selfOn;syncSelfFields('as-self','at-sel','ar-sel');}
+}
+function showSyncStatus(who){
+  var now=new Date(),hh=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  var name=String(who||'ผู้ใช้อื่น').split('@')[0];
+  document.getElementById('sync-dot').className='sync-dot';
+  document.getElementById('sync-label').textContent='🔄 อัปเดตจาก '+name+' '+hh;
+  if(Date.now()-_lastSyncToast>15000){_lastSyncToast=Date.now();toast('🔄 '+name+' แก้ตารางนี้ — อัปเดตบนจอแล้ว');}
+}
+async function syncFromServer(who){
+  if(!_currentDraftId||!currentUserEmail)return;
+  if(_dirty||_saveBusy){saveDraft();return;}           // มีงานค้าง → บันทึก (ระบบรวมงานและดึงของคนอื่นมาให้ในตัว)
+  if(uiBusy()){scheduleSync();return;}                 // รอให้ลากวาง/ปิดหน้าต่าง/พิมพ์เสร็จก่อน
+  try{
+    var r=await supabase.from('drafts').select('data,ts,updated_by').eq('id',_currentDraftId).maybeSingle();
+    if(!r||!r.data||!(r.data.ts>_lastKnownTs||_needPull))return;
+    if(_dirty||_saveBusy||uiBusy()){scheduleSync();return;} // ระหว่างดึงข้อมูล ผู้ใช้เริ่มทำอะไรต่อ
+    applyServerDraft(r.data.data);setBase(r.data.data);markVersion(r.data.ts);_needPull=false;
+    showSyncStatus(r.data.updated_by||who);
+  }catch(e){}
+}
+// ตรวจโปรแกรมเวอร์ชันใหม่ (โค้ดเว็บถูกอัปเดต) — เทียบ ETag ของหน้าเว็บที่เปิดอยู่กับบนเซิร์ฟเวอร์
+var _appTag=null;
+async function fetchAppTag(fresh){
+  try{
+    var r=fresh?await fetch(location.pathname+'?v='+Date.now(),{method:'HEAD',cache:'no-store'})
+               :await fetch(location.pathname,{cache:'force-cache'});
+    return r.headers.get('etag')||r.headers.get('last-modified')||null;
+  }catch(e){return null;}
+}
+fetchAppTag(false).then(function(t){_appTag=t;});
+setInterval(async function(){
+  if(!_appTag)return;
+  var t=await fetchAppTag(true);
+  if(t&&t!==_appTag)showNewVersionBanner('app');
+},120000); // เช็คทุก 2 นาที
 
 // ═══════════════════════════════════════════════
 // INIT
@@ -2143,7 +2198,7 @@ async function clearAllSubjects(){
   // \u0e2d\u0e31\u0e1b\u0e40\u0e14\u0e15\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e17\u0e2d\u0e21\u0e1a\u0e19\u0e40\u0e0b\u0e34\u0e23\u0e4c\u0e1f\u0e40\u0e27\u0e2d\u0e23\u0e4c \u0e43\u0e2b\u0e49\u0e17\u0e38\u0e01 draft \u0e43\u0e19\u0e40\u0e17\u0e2d\u0e21\u0e19\u0e35\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e10\u0e32\u0e19\u0e2d\u0e35\u0e01
   if(_currentTermId){
     try{
-      var res=await supabase.from('terms').update({blocks_data:[]}).eq('id',_currentTermId);
+      var res=await supabase.from('terms').update({blocks_data:[],settings:buildSettingsPayload()}).eq('id',_currentTermId);
       if(res&&res.error) throw res.error;
     }catch(e){ toast('\u0e25\u0e1a\u0e23\u0e30\u0e14\u0e31\u0e1a\u0e40\u0e17\u0e2d\u0e21\u0e44\u0e21\u0e48\u0e2a\u0e33\u0e40\u0e23\u0e47\u0e08 (\u0e41\u0e15\u0e48\u0e25\u0e49\u0e32\u0e07\u0e43\u0e19\u0e40\u0e04\u0e23\u0e37\u0e48\u0e2d\u0e07\u0e41\u0e25\u0e49\u0e27): '+e.message,'err'); }
   }
@@ -2407,7 +2462,10 @@ function renderRoomMgr(){
 // รวมค่าตั้งค่าปัจจุบันทั้งหมดเป็น object เดียว — ใช้ตอนบันทึกเสมอ (ไม่ว่าจะแก้จากจุดไหน)
 // กัน Supabase .update({settings:...}) ทับค่าตั้งค่าจุดอื่นที่ไม่ได้แก้ในรอบนี้หายไป
 function buildSettingsPayload(){
+  // rev = เวอร์ชันการตั้งค่าเทอม — หน้าจออื่นเห็นค่านี้เปลี่ยน (และไม่ใช่ของตัวเอง) จะขึ้นแถบให้โหลดใหม่
+  _termRev=Date.now();
   return {
+    rev:_termRev, revSid:_sid,
     lunchPeriods:LUNCH_PERIOD, specialSlots:SPECIAL_SLOTS,
     periods:PD, breaks:BREAKS, directorName:DIRECTOR_NAME,
     printSubtitleTpl:PRINT_SUBTITLE_TPL, printIssued:PRINT_ISSUED, printEffective:PRINT_EFFECTIVE, classDept:CLASS_DEPT, classAdvisor:CLASS_ADVISOR,
@@ -3018,7 +3076,7 @@ function subscribeToDraft(draftId){
       function(payload){
         if(payload.new.data&&payload.new.data.sid===_sid) return; // การบันทึกของหน้าจอนี้เอง (แยกต่อแท็บ แม้ใช้บัญชีเดียวกัน)
         if(payload.new.ts && payload.new.ts<=_lastKnownTs) return;  // เก่ากว่าที่เรามีแล้ว
-        showNewVersionBanner(payload.new.updated_by);               // แจ้งเตือน + ปุ่มโหลดใหม่
+        syncFromServer(payload.new.updated_by);                     // ดึงงานของคนอื่นขึ้นจอเบื้องหลัง
       }).subscribe();
 }
 
@@ -3214,7 +3272,7 @@ async function saveDraft(){
   lbl.textContent='กำลังบันทึก...';
   var cnt=_dirtyCount; // จำไว้ว่าตอนเริ่มบันทึกมีการแก้กี่ครั้ง — ถ้าลากวางระหว่างบันทึก จะได้ไม่นับว่าบันทึกแล้ว
   var local=collectDraftData(); local.sid=_sid;
-  try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(local));localStorage.removeItem('ptech_snapshot');}catch(e0){}
+  try{localStorage.setItem('ptech_draft_'+_currentDraftId,JSON.stringify(local));}catch(e0){} // สำเนาฉุกเฉิน (ptech_snapshot) จะลบหลังบันทึกสำเร็จเท่านั้น
   rememberOpenDraft(); // จำ draft นี้ไว้ ให้รีเฟรชแล้วกลับมาที่ draft เดิม
   try{
     // ดึงฉบับล่าสุดบนเซิร์ฟเวอร์ → รวมเฉพาะช่องที่หน้าจอนี้แก้ → เขียนกลับเฉพาะเมื่อไม่มีใครบันทึกแทรก (ไม่งั้นรวมใหม่)
@@ -3238,16 +3296,21 @@ async function saveDraft(){
     }
     if(!final)throw new Error('มีผู้ใช้อื่นบันทึกพร้อมกันหลายครั้ง — จะลองใหม่อัตโนมัติ');
     var pulled=draftBody(final)!==draftBody(local); // มีงานของคนอื่นรวมเข้ามาด้วยไหม
-    if(_dirtyCount===cnt){
-      if(pulled)loadDraftData(final); // แสดงงานของคนอื่นบนจอนี้ทันที
-      setDirty(false);
+    var clean=(_dirtyCount===cnt); // ไม่มีการแก้เพิ่มระหว่างบันทึก
+    if(clean){setDirty(false);try{localStorage.removeItem('ptech_snapshot');}catch(e1){}}
+    if(clean&&(!pulled||!uiBusy())){
+      if(pulled)applyServerDraft(final); // แสดงงานของคนอื่นบนจอนี้ทันที
+      _needPull=false;
       setBase(final);
+    }else if(clean){
+      // กำลังลากวาง/เปิดหน้าต่างอยู่ — ยังไม่วาดตารางทับ ฐานคือสิ่งที่จอนี้มี แล้วค่อยดึงงานคนอื่นเมื่อว่าง
+      setBase(local);_needPull=true;scheduleSync();
     }else{
       // มีการแก้เพิ่มระหว่างบันทึก — ยังไม่ดึงงานคนอื่นมาทับจอ ฐานคือสิ่งที่จอนี้มีตอนเริ่มบันทึก รอบถัดไปจะรวมให้ครบ
       setBase(local);
     }
     hideServerDownBanner(); // เซฟขึ้นคลาวด์ได้ = เซิร์ฟเวอร์กลับมาแล้ว
-    markVersion(final.ts); hideNewVersionBanner(); // เวอร์ชันล่าสุดบนเซิร์ฟเวอร์รวมงานเราแล้ว
+    markVersion(final.ts); // เวอร์ชันล่าสุดบนเซิร์ฟเวอร์รวมงานเราแล้ว (แถบโหลดใหม่ใช้เฉพาะเรื่องเทอม/โปรแกรม จึงไม่ซ่อนที่นี่)
     var now=new Date();
     var hhmm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
     if(!_dirty){dot.className='sync-dot';lbl.textContent='บันทึก '+hhmm;}
@@ -3722,7 +3785,12 @@ setInterval(function(){if(_dirty)saveSnapshot();},2000);
 setInterval(function(){if(_dirty)saveDraft();},5000);
 
 // Save on page close/refresh
-window.addEventListener('beforeunload',function(){
+window.addEventListener('beforeunload',function(e){
+  // ยังบันทึกไม่เสร็จ → ให้เบราว์เซอร์ถามก่อนออก และเก็บสำเนาฉุกเฉินไว้ให้กู้คืนตอนเปิดใหม่
+  if((_dirty||_saveBusy)&&!_leaving){
+    saveSnapshot();
+    e.preventDefault(); e.returnValue='';
+  }
   if(_dirty){
     // Synchronous localStorage write (allowed in beforeunload)
     try{
@@ -3785,6 +3853,7 @@ function loadTermData(t){
     TERM_START=''; TERM_END='';
   }
   TERM_DISPLAY_NAME=t.name||'';
+  _termRev=(t.settings&&t.settings.rev)||0; // เวอร์ชันการตั้งค่าเทอมที่โหลดมา
   DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
   _currentTermId = t.id;
   try{localStorage.setItem('ptech_last_term',t.id);}catch(e){}
@@ -3878,7 +3947,7 @@ async function retryServerHealth(btn){
 // NEW-VERSION NOTICE — แจ้งเตือนเมื่อผู้ใช้อื่นแก้ตารางเดียวกัน (realtime + polling สำรอง)
 // ═══════════════════════════════════════════════
 function markVersion(ts){ _lastKnownTs = ts || Date.now(); } // จำ ts ของเวอร์ชันที่เราถืออยู่
-function showNewVersionBanner(who){
+function showNewVersionBanner(kind){ // kind: 'term' = การตั้งค่าเทอมเปลี่ยน, 'app' = โปรแกรมเวอร์ชันใหม่
   if(document.getElementById('new-version-banner'))return;
   var b=document.createElement('div');
   b.id='new-version-banner';
@@ -3887,7 +3956,8 @@ function showNewVersionBanner(who){
     +'background:var(--blue);color:#fff;border-radius:10px;'
     +'font-family:inherit;font-size:13px;font-weight:600;text-align:center;padding:9px 14px;'
     +'box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
-  b.innerHTML='🔄 มีเวอร์ชันใหม่'+(who?' จาก '+esc(who):'')+' — ผู้ใช้อื่นเพิ่งแก้ตารางนี้ '
+  var msg=kind==='app'?'⬆ มีโปรแกรมเวอร์ชันใหม่ — กดโหลดใหม่เพื่อใช้งานเวอร์ชันล่าสุด ':'⚙ มีการเปลี่ยนการตั้งค่าเทอม (รายวิชา/คาบ/พักเที่ยง/ชั้นเรียน) — กดโหลดใหม่เพื่อใช้ข้อมูลล่าสุด ';
+  b.innerHTML=esc(msg)
     +'<button onclick="reloadForNewVersion()" style="background:#fff;color:var(--blue);border:none;border-radius:6px;padding:5px 14px;font-weight:700;cursor:pointer;font-family:inherit">โหลดใหม่</button>';
   document.body.appendChild(b);
 }
@@ -3899,16 +3969,21 @@ async function reloadForNewVersion(){
     if(_dirty)await saveDraft();
     if(_dirty&&!confirm('บันทึกงานที่ค้างไม่สำเร็จ ถ้าโหลดใหม่ตอนนี้ งานที่ยังไม่บันทึกจะหาย\nต้องการโหลดใหม่ต่อหรือไม่?'))return;
   }
-  location.reload();
+  _leaving=true;
+  location.replace(location.pathname+'?v='+Date.now()); // เลี่ยงแคชของเบราว์เซอร์ ให้ได้โปรแกรมเวอร์ชันล่าสุดแน่นอน
 }
 // polling สำรอง — เผื่อ Supabase Realtime ไม่ได้เปิด ก็ยังตรวจเจอเวอร์ชันใหม่
 async function pollNewVersion(){
   if(!_currentDraftId || !currentUserEmail) return;
-  if(document.getElementById('new-version-banner')) return; // แจ้งไปแล้ว
   try{
+    // draft มีเวอร์ชันใหม่จากคนอื่น → ซิงค์เบื้องหลัง (บันทึกของหน้าจอนี้อัปเดต _lastKnownTs เสมอ จึงไม่ดึงซ้ำของตัวเอง)
     var r=await supabase.from('drafts').select('ts,updated_by').eq('id',_currentDraftId).maybeSingle();
-    if(r&&r.data&&r.data.ts>_lastKnownTs){ // บันทึกของหน้าจอนี้อัปเดต _lastKnownTs เสมอ จึงไม่เด้งเตือนตัวเอง
-      showNewVersionBanner(r.data.updated_by);
+    if(r&&r.data&&r.data.ts>_lastKnownTs)syncFromServer(r.data.updated_by);
+    // การตั้งค่าเทอมถูกแก้จากหน้าจออื่น (นำเข้ารายวิชา/คาบ/พักเที่ยง/ชั้นเรียน) → ต้องโหลดใหม่
+    if(_currentTermId){
+      var t=await supabase.from('terms').select('settings').eq('id',_currentTermId).maybeSingle();
+      var s=(t&&t.data&&t.data.settings)||{};
+      if(s.rev&&s.rev>_termRev&&s.revSid!==_sid)showNewVersionBanner('term');
     }
   }catch(e){}
 }
@@ -3958,7 +4033,7 @@ async function bootApp(){
     rememberOpenDraft();
     markVersion(last.ts); // จำเวอร์ชันที่โหลดมา ใช้ตรวจเวอร์ชันใหม่จากคนอื่น
     document.getElementById('draft-name').value=last.name||'Draft'; // ตั้งชื่อให้ตรงกับ draft ที่โหลดเสมอ (กันชื่อค้างจากการรีเฟรช)
-    var draftData=last.data;
+    var draftData=last.data, restored=false;
     // ตรวจ snapshot ฉุกเฉิน (เก็บในเครื่อง — ไม่เกี่ยวกับเซิร์ฟเวอร์)
     var snapRaw=localStorage.getItem('ptech_snapshot');
     if(snapRaw){
@@ -3972,7 +4047,7 @@ async function bootApp(){
             '⚠ พบข้อมูลที่ยังไม่ได้บันทึก ('+ts+')\n'
             +'กด OK เพื่อกู้คืน หรือ Cancel เพื่อใช้ draft เดิม'
           );
-          if(ok){
+          if(ok){ restored=true;
             draftData=snap.data;
             if(snap.draftName)document.getElementById('draft-name').value=snap.draftName;
           }
@@ -3981,7 +4056,7 @@ async function bootApp(){
       localStorage.removeItem('ptech_snapshot');
     }
     loadDraftData(draftData);
-    setBase(last.data); // ฐาน = ฉบับบนเซิร์ฟเวอร์ (ถ้ากู้งานค้างในเครื่องมา ส่วนต่างจะถูกนับเป็นงานของเราตอนบันทึก)
+    setBase(last.data); if(restored)setDirty(true); // กู้งานค้างมา → ยังไม่ได้บันทึก ระบบจะบันทึกให้อัตโนมัติ // ฐาน = ฉบับบนเซิร์ฟเวอร์ (ถ้ากู้งานค้างในเครื่องมา ส่วนต่างจะถูกนับเป็นงานของเราตอนบันทึก)
     subscribeToDraft(_currentDraftId);
     dot.className='sync-dot';lbl.textContent='พร้อมใช้งาน';
   }catch(e){
