@@ -4,8 +4,10 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PTECH Timetable</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- ไลบรารีภายนอก: ล็อกรุ่นแน่นอน + ตรวจลายนิ้วมือไฟล์ (integrity) — ถ้าไฟล์บน CDN ถูกแก้ เบราว์เซอร์จะไม่ยอมรัน -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+<!-- SheetJS 0.20.3 จาก CDN ของผู้พัฒนา (รุ่นบน npm ค้างที่ 0.18.5 ซึ่งมีช่องโหว่ CVE-2023-30533 / CVE-2024-22363 ตอนอ่านไฟล์ Excel) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
 <style>
 /* ─── RESET & TOKENS ─── */
 *{margin:0;padding:0;box-sizing:border-box}
