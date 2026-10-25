@@ -208,6 +208,7 @@ input,select,textarea{font-family:inherit}
 .ws-label{font-size:12px;font-weight:700;color:var(--ink3);white-space:nowrap;letter-spacing:.04em;text-transform:uppercase}
 .ws-sel{padding:7px 11px;border:1.5px solid var(--line);border-radius:var(--r);font-size:14px;font-weight:600;background:var(--paper);color:var(--ink);outline:none;cursor:pointer;min-width:140px}
 .ws-sel:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
+.ws-toolbar .ibtn{white-space:nowrap;flex-shrink:0}
 .chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}
 .chip-red{background:var(--red-bg);color:var(--red)}
 .chip-green{background:var(--green-bg);color:var(--green)}
@@ -438,6 +439,60 @@ input,select,textarea{font-family:inherit}
   .print-header{display:none}
 }
 
+/* ─── จอสัมผัส ─── */
+.m-only{display:none!important}
+.m-backdrop{display:none}
+#tap-bar{position:fixed;left:50%;bottom:calc(48px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:250;background:var(--ink);color:#fff;border-radius:12px;padding:8px 8px 8px 14px;display:none;align-items:center;gap:10px;box-shadow:var(--shadow-lg);font-size:13px;font-weight:600;max-width:calc(100vw - 20px)}
+#tap-bar.show{display:flex}
+#tap-bar b{color:#fde68a}
+#tap-bar button{background:#fff;color:#1c1b19;border:none;border-radius:8px;padding:7px 12px;font-weight:700;font-family:inherit;flex-shrink:0}
+.bcard.tap-sel,.ce.tap-sel{outline:3px solid var(--blue);outline-offset:1px}
+#touch-ghost{position:fixed;z-index:400;pointer-events:none;background:var(--blue);color:#fff;font-size:12px;font-weight:700;padding:6px 10px;border-radius:8px;box-shadow:var(--shadow-lg);transform:translate(-50%,-140%);white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis}
+html.touch .bcard,html.touch .ce{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+html.touch .bcard-edit{display:flex;width:28px;height:28px;font-size:14px}
+html.touch .ce-rm{display:none!important}
+
+/* ─── จอเล็ก (โทรศัพท์ / ไอแพดแนวตั้ง): เมนูและรายการวิชาเป็นแผงเลื่อนออกมา ตารางเต็มจอ ─── */
+@media screen and (max-width:900px){
+  .m-only{display:inline-flex!important}
+  .m-hide{display:none!important}
+  body{height:100vh;height:100dvh}
+  .shell{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;height:100vh;height:100dvh}
+  .topbar,.workspace,.statusbar{grid-column:1}
+  .topbar{padding:6px 8px;gap:6px;min-height:48px}
+  .topbar-sep,.logo span,.draft-label{display:none}
+  .draft-bar{flex:1;min-width:0}
+  .draft-name{flex:1;min-width:64px;width:auto}
+  .navrail{position:fixed;top:0;left:0;bottom:0;width:min(84vw,300px);z-index:300;transform:translateX(-105%);transition:transform .2s ease;opacity:1!important;pointer-events:auto!important;box-shadow:var(--shadow-lg)}
+  .shell.m-nav .navrail{transform:none}
+  .navrail-handle{display:none!important}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;width:min(92vw,380px);z-index:290;transform:translateX(-105%);transition:transform .2s ease;box-shadow:var(--shadow-lg)}
+  .shell.palette-open .sidebar{transform:none}
+  .m-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:280}
+  .shell.m-nav .m-backdrop,.shell.palette-open .m-backdrop{display:block}
+  .content-banner{margin:6px 8px 0;padding:6px 8px;gap:6px}
+  .content-banner-icon,.content-banner .cb-text{display:none}
+  .content-banner>div:last-child{flex:1}
+  .content-banner #term-sel{flex:1}
+  .ws-toolbar{flex-wrap:wrap;padding:8px;gap:6px;overflow:visible}
+  .ws-label{display:none}
+  .ws-sel{min-width:0;flex:1}
+  .ws-right{margin-left:0!important;gap:6px}
+  #chip-sched{display:none}
+  .grid-wrap{padding:8px}
+  .tt td,.tt th.ph{min-width:108px}
+  .statusbar{font-size:11px;gap:10px;padding:6px 10px;flex-wrap:wrap}
+  .sb-hint{display:none}
+  .modal{padding:16px;max-height:92vh;max-height:92dvh}
+}
+@media screen and (max-width:600px){
+  #sync-label{display:none}
+  .view-tabs{flex:1 1 calc(100% - 110px);justify-content:space-between}
+  #vsel{flex:1 1 120px}
+  .vtab{padding:6px 8px;font-size:12px}
+  .vtab svg{display:none}
+}
+
 @media print{
   @page{size:A4 landscape;margin:10mm 8mm}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -552,6 +607,7 @@ input,select,textarea{font-family:inherit}
 
 <!-- TOP BAR -->
 <header class="topbar">
+  <button class="tbtn tbtn-ghost m-only" onclick="openMobileNav()" aria-label="เมนู" style="font-size:16px;padding:6px 10px">☰</button>
   <div class="logo">PTECH <span>Timetable</span></div>
   <div class="topbar-sep"></div>
   <div class="draft-bar">
@@ -572,6 +628,7 @@ input,select,textarea{font-family:inherit}
     <button class="stab on" onclick="sTab(0)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> รายวิชา <span id="pc" style="background:#6b7280;color:#fff;border-radius:9px;padding:1px 6px;font-size:10px;font-weight:700">0</span></button>
     <button class="stab" onclick="sTab(1)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> ปัญหา <span id="cc" style="background:#dc2626;color:#fff;border-radius:9px;padding:1px 6px;font-size:10px;font-weight:700">0</span></button>
     <button class="stab" onclick="sTab(2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> เพิ่ม</button>
+    <button class="stab m-only" onclick="closeMobilePanels()" aria-label="ปิด" style="flex:0 0 auto;padding:0 12px">✕</button>
   </div>
   <div class="side-body">
     <!-- TAB 0: blocks -->
@@ -680,7 +737,7 @@ input,select,textarea{font-family:inherit}
 <main class="workspace">
   <div class="content-banner">
     <div class="content-banner-icon">🗓</div>
-    <div style="flex:1;min-width:160px">
+    <div class="cb-text" style="flex:1;min-width:160px">
       <div class="content-banner-title">ภาคเรียนปัจจุบัน</div>
       <div class="content-banner-main" id="banner-term-name">—</div>
       <div class="content-banner-sub" id="banner-term-dates"></div>
@@ -691,6 +748,7 @@ input,select,textarea{font-family:inherit}
     </div>
   </div>
   <div class="ws-toolbar">
+    <button class="ibtn m-only" onclick="togglePalette()" style="background:#059669;color:#fff;border-color:#059669">📋 วิชา</button>
     <div class="view-tabs">
       <button class="vtab on" onclick="setView('room')" id="vt-room"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><line x1="9" y1="9" x2="9" y2="9.01"/><line x1="9" y1="12" x2="9" y2="12.01"/><line x1="9" y1="15" x2="9" y2="15.01"/></svg> ดูตามห้อง</button>
       <button class="vtab" onclick="setView('class')" id="vt-class"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ดูตามชั้น</button>
@@ -698,13 +756,13 @@ input,select,textarea{font-family:inherit}
     </div>
     <span class="ws-label">มุมมอง:</span>
     <select class="ws-sel" id="vsel" onchange="render()"></select>
-    <button class="ibtn" onclick="prevItem()" title="ก่อนหน้า">◀ ก่อน</button>
-    <button class="ibtn" onclick="nextItem()" title="ถัดไป">ถัดไป ▶</button>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <button class="ibtn" onclick="prevItem()" title="ก่อนหน้า">◀<span class="m-hide"> ก่อน</span></button>
+    <button class="ibtn" onclick="nextItem()" title="ถัดไป"><span class="m-hide">ถัดไป </span>▶</button>
+    <div class="ws-right" style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <span class="chip chip-red" id="chip-conf" style="display:none"></span>
       <span class="chip chip-amber" id="chip-warn" style="display:none"></span>
       <span class="chip chip-green" id="chip-sched"></span>
-      <button class="ibtn" onclick="openConflictPanel()">⚠ ดูปัญหา</button><div style="display:flex;gap:4px"><button class="ibtn" onclick="openPrintModal()" style="background:var(--red);color:#fff;border-color:var(--red)">📄 PDF</button></div>
+      <button class="ibtn" onclick="openConflictPanel()">⚠<span class="m-hide"> ดูปัญหา</span></button><div style="display:flex;gap:4px"><button class="ibtn" onclick="openPrintModal()" style="background:var(--red);color:#fff;border-color:var(--red)">📄 PDF</button></div>
     </div>
   </div>
   <div class="grid-wrap"><div class="print-header" id="print-header"><div><h1 id="print-title">ตารางเรียน PTECH</h1></div><div><p id="print-sub" style="font-size:9pt;color:#444;text-align:right"></p><p id="print-date" style="font-size:8pt;color:#888;text-align:right"></p></div></div><table class="tt" id="tt"></table></div>
@@ -715,8 +773,22 @@ input,select,textarea{font-family:inherit}
   <span id="sb-sched">จัดแล้ว: <b style="color:#6ee7b7">0</b> ช่อง</span>
   <span id="sb-pend">รอจัด: <b style="color:#fbbf24">0</b> บล็อก</span>
   <span id="sb-conf" style="color:#f87171">ปัญหา: <b>0</b></span>
-  <span style="margin-left:auto">ลาก block มาวาง | คลิกช่องเพื่อเลือก | ✎ แก้ไข | × นำออก</span>
+  <span class="sb-hint" id="sb-hint" style="margin-left:auto">ลาก block มาวาง | คลิกช่องเพื่อเลือก | ✎ แก้ไข | × นำออก</span>
 </footer>
+<div class="m-backdrop" onclick="closeMobilePanels()"></div>
+</div>
+
+<!-- จอสัมผัส: แถบบอกสถานะ "แตะเลือกแล้วแตะวาง" และเมนูของคาบที่วางแล้ว -->
+<div id="tap-bar"><span id="tap-msg"></span><button onclick="tapCancel()">ยกเลิก</button></div>
+<div class="overlay" id="ce-sheet">
+  <div class="modal modal-sm" style="gap:10px">
+    <h2 id="ce-sheet-title" style="font-size:16px"></h2>
+    <div class="modal-sub" id="ce-sheet-sub"></div>
+    <button class="ibtn ibtn-pri" style="padding:11px" onclick="ceSheetMove()">↔ ย้ายคาบนี้</button>
+    <button class="ibtn" style="padding:11px" onclick="ceSheetEdit()">✎ แก้ไขวิชา</button>
+    <button class="ibtn" style="padding:11px;color:var(--red)" onclick="ceSheetRemove()">🗑 นำคาบนี้ออก</button>
+    <button class="ibtn" style="padding:11px" onclick="closeCeSheet()">ยกเลิก</button>
+  </div>
 </div>
 
 <!-- ROOM PICKER MODAL -->
@@ -920,6 +992,162 @@ var _autoSaveTimer=null; // debounced auto-save timer
 var tt = {};      // tt[room][day][period] = {blockId, groups[]}
 var view  = 'room', item = RM[0];
 var drag  = null;
+
+// ═══ จอสัมผัส (โทรศัพท์/ไอแพด): แตะเลือก→แตะวาง, กดค้างแล้วลาก, เมนูของคาบที่วางแล้ว ═══
+// ทุกทางเรียก oDrop/oDropClass/oDropTeacher ตัวเดียวกับการลากบนคอมพิวเตอร์ — ตรวจชน/พักเที่ยง/เลือกห้องเหมือนกันทุกอย่าง
+var TOUCH=!!(window.matchMedia&&matchMedia('(hover: none) and (pointer: coarse)').matches);
+if(TOUCH)document.documentElement.classList.add('touch');
+var DND=TOUCH?'false':'true'; // จอสัมผัสใช้กดค้างลากของโปรแกรมเอง แทนการลากของเบราว์เซอร์ (ซึ่งใช้ไม่ได้บน Android/ไม่แน่นอนบน iOS)
+var tapSel=null,_noClickUntil=0;
+function isMobileLayout(){return window.innerWidth<=900;}
+function tapUI(){return TOUCH||isMobileLayout();}
+function tapBlock(){return Date.now()<_noClickUntil;} // คลิกที่เบราว์เซอร์ส่งตามมาหลังปล่อยนิ้วจากการกดค้างลาก — ไม่นับ
+function openMobileNav(){document.querySelector('.shell').classList.add('m-nav');}
+function closeMobilePanels(){
+  var s=document.querySelector('.shell');s.classList.remove('m-nav');
+  if(isMobileLayout())s.classList.remove('palette-open');
+}
+function tapSelect(bid,mv,el){
+  tapCancel();
+  var b=gB(bid);if(!b)return;
+  tapSel={bid:bid,mv:mv||null};
+  if(el)el.classList.add('tap-sel');
+  document.getElementById('tap-msg').innerHTML=(mv?'แตะช่องปลายทางเพื่อย้าย ':'แตะช่องในตารางเพื่อวาง ')+'<b>'+esc(sName(b))+'</b>';
+  document.getElementById('tap-bar').classList.add('show');
+  if(isMobileLayout())closeMobilePanels(); // ปิดแผงรายการวิชาให้เห็นตาราง
+}
+function tapCancel(){
+  tapSel=null;
+  document.querySelectorAll('.tap-sel').forEach(function(el){el.classList.remove('tap-sel');});
+  var bar=document.getElementById('tap-bar');if(bar)bar.classList.remove('show');
+}
+function tapCard(e,bid){
+  if(tapBlock()||!tapUI())return;
+  if(tapSel&&tapSel.bid===bid&&!tapSel.mv){tapCancel();return;} // แตะซ้ำ = ยกเลิก
+  tapSelect(bid,null,e.currentTarget);
+}
+function tapCE(e,bid,room,d,p){
+  if(tapBlock()){e.stopPropagation();return;}
+  if(tapSel)return;            // กำลังเลือกวิชาอยู่ → ปล่อยให้ช่องตารางรับการวาง (ทับ = ถามแทนที่)
+  if(!tapUI())return;
+  e.stopPropagation();
+  openCeSheet(bid,room,d,p);
+}
+function tapDropTo(kind,args){
+  var s=tapSel;tapCancel();
+  drag={bid:s.bid};
+  var fn=kind==='room'?oDrop:kind==='class'?oDropClass:oDropTeacher;
+  try{fn.apply(null,[fakeDropEvt(s.mv?JSON.stringify(s.mv):'')].concat(args));}
+  finally{drag=null;}
+}
+var _ceCtx=null;
+function openCeSheet(bid,room,d,p){
+  var b=gB(bid);if(!b)return;
+  _ceCtx={bid:bid,room:room,d:d,p:p};
+  document.getElementById('ce-sheet-title').textContent=sName(b);
+  document.getElementById('ce-sheet-sub').textContent='วัน'+d+' คาบ '+p+(isSelfRoom(room)?'':' · ห้อง '+room)+(b.teacher?' · '+b.teacher:'');
+  document.getElementById('ce-sheet').classList.add('open');
+}
+function closeCeSheet(){document.getElementById('ce-sheet').classList.remove('open');_ceCtx=null;}
+function ceSheetMove(){
+  var c=_ceCtx;closeCeSheet();if(!c)return;
+  var el=document.querySelector('.ce[data-bid="'+c.bid+'"][data-room="'+CSS.escape(c.room)+'"][data-d="'+c.d+'"][data-p="'+c.p+'"]');
+  tapSelect(c.bid,{room:c.room,d:c.d,p:c.p},el);
+}
+function ceSheetEdit(){var c=_ceCtx;closeCeSheet();if(c)openEdit(c.bid);}
+function ceSheetRemove(){var c=_ceCtx;closeCeSheet();if(c)rmS(c.room,c.d,c.p);}
+document.addEventListener('DOMContentLoaded',function(){
+  // เมนูซ้ายบนจอเล็ก: เลือกเมนูแล้วปิดแผงให้อัตโนมัติ
+  var nav=document.querySelector('.navrail');
+  if(nav)nav.addEventListener('click',function(e){
+    var btn=e.target.closest('button');
+    if(!btn||!isMobileLayout()||btn.id==='theme-toggle')return;
+    setTimeout(function(){document.querySelector('.shell').classList.remove('m-nav');},0);
+  });
+  var sh=document.getElementById('ce-sheet');
+  if(sh)sh.addEventListener('click',function(e){if(e.target===sh)closeCeSheet();});
+  if(TOUCH){var hint=document.getElementById('sb-hint');if(hint)hint.textContent='แตะวิชาแล้วแตะช่องเพื่อวาง | กดค้างเพื่อลาก | แตะคาบเพื่อย้าย/นำออก';}
+});
+// กดค้าง ~0.4 วิ แล้วลาก (นิ้วขยับก่อนครบเวลา = เลื่อนจอตามปกติ)
+(function(){
+  var lp=null;
+  function info(el){
+    if(el.classList.contains('bcard'))return {bid:el.getAttribute('data-id'),mv:null};
+    return {bid:el.getAttribute('data-bid'),mv:{room:el.getAttribute('data-room'),d:el.getAttribute('data-d'),p:+el.getAttribute('data-p')}};
+  }
+  function cellAt(x,y){var el=document.elementFromPoint(x,y);return el&&el.closest?el.closest('td[data-dk]'):null;}
+  function track(){
+    if(!lp||!lp.started)return;
+    lp.ghost.style.left=lp.x+'px';lp.ghost.style.top=lp.y+'px';
+    var td=cellAt(lp.x,lp.y);
+    if(td!==lp.target){if(lp.target)lp.target.classList.remove('drop-ok');lp.target=td;if(td)td.classList.add('drop-ok');}
+  }
+  function autoScroll(){ // นิ้วอยู่ใกล้ขอบตาราง → เลื่อนตารางให้
+    if(!lp||!lp.started)return;
+    var gw=document.querySelector('.grid-wrap');if(!gw)return;
+    var r=gw.getBoundingClientRect(),m=44,dx=0,dy=0;
+    if(lp.x<r.left+m)dx=-14;else if(lp.x>r.right-m)dx=14;
+    if(lp.y<r.top+m)dy=-14;else if(lp.y>r.bottom-m)dy=14;
+    if(dx||dy){gw.scrollBy(dx,dy);track();}
+  }
+  function start(){
+    if(!lp)return;
+    var inf=info(lp.el),b=gB(inf.bid);if(!b){lp=null;return;}
+    lp.started=true;lp.inf=inf;
+    tapCancel();
+    drag={bid:inf.bid};
+    try{if(navigator.vibrate)navigator.vibrate(15);}catch(e){}
+    lp.el.classList.add('dragging');
+    lp.ghost=document.createElement('div');lp.ghost.id='touch-ghost';lp.ghost.textContent=sName(b);
+    document.body.appendChild(lp.ghost);
+    if(isMobileLayout()){ // ปิดแผงรายการวิชาทันที (ไม่ต้องรอเลื่อน) ให้เห็นช่องปลายทางในตาราง
+      var sb=document.querySelector('.sidebar');sb.style.transition='none';
+      closeMobilePanels();void sb.offsetWidth;
+      setTimeout(function(){sb.style.transition='';},50);
+    }
+    lp.iv=setInterval(autoScroll,30);
+    track();
+  }
+  function end(e,cancel){
+    if(!lp)return;
+    var s=lp;lp=null;clearTimeout(s.timer);
+    if(!s.started)return;
+    clearInterval(s.iv);
+    _noClickUntil=Date.now()+600;
+    if(e&&e.cancelable)e.preventDefault();
+    if(s.ghost)s.ghost.remove();
+    s.el.classList.remove('dragging');
+    if(s.target)s.target.classList.remove('drop-ok');
+    var td=cancel?null:cellAt(s.x,s.y);
+    if(td){
+      var k=td.getAttribute('data-dk'),fn=k==='room'?oDrop:k==='class'?oDropClass:oDropTeacher;
+      try{fn(fakeDropEvt(s.inf.mv?JSON.stringify(s.inf.mv):''),td.getAttribute('data-da'),td.getAttribute('data-dd'),+td.getAttribute('data-dp'));}
+      catch(err){console.error(err);}
+    }
+    drag=null;
+  }
+  document.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1){if(lp)end(null,true);return;}
+    var el=e.target.closest&&e.target.closest('.bcard,.ce');
+    if(!el||e.target.closest('button'))return;
+    var t=e.touches[0];
+    lp={x:t.clientX,y:t.clientY,el:el,started:false};
+    lp.timer=setTimeout(start,420);
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!lp)return;
+    var t=e.touches[0];
+    if(!lp.started){ // ขยับก่อนครบเวลา = ผู้ใช้กำลังเลื่อนจอ
+      if(Math.abs(t.clientX-lp.x)>10||Math.abs(t.clientY-lp.y)>10){clearTimeout(lp.timer);lp=null;}
+      return;
+    }
+    e.preventDefault();
+    lp.x=t.clientX;lp.y=t.clientY;track();
+  },{passive:false});
+  document.addEventListener('touchend',function(e){end(e,false);},{passive:false});
+  document.addEventListener('touchcancel',function(e){end(e,true);});
+  document.addEventListener('contextmenu',function(e){if(lp)e.preventDefault();}); // กันเมนูกดค้างของเบราว์เซอร์
+})();
 var nextId=(function(){var m=blocks.length;blocks.forEach(function(b){var n=parseInt((b.id||'').replace(/[^0-9]/g,''))||0;if(n>m)m=n;});return m+1;})();
 // คำนวณ nextId ใหม่จาก blocks ปัจจุบัน — เรียกหลังโหลด draft เพื่อไม่ให้ค้างค่าเก่า
 function recalcNextId(){
@@ -1055,7 +1283,7 @@ var _termRev=0;        // เวอร์ชันการตั้งค่า
 var _leaving=false;    // กำลังโหลดหน้าใหม่ตามแถบแจ้งเตือน — ไม่ต้องถามยืนยันซ้ำ
 var _syncTimer=null,_lastSyncToast=0,_needPull=false; // _needPull = บนเซิร์ฟเวอร์มีงานคนอื่นที่ยังไม่ได้วาดลงจอนี้
 function uiBusy(){ // ผู้ใช้กำลังทำอะไรค้างอยู่ — ห้ามวาดตารางใหม่ทับ
-  if(drag)return true;
+  if(drag||tapSel)return true; // กำลังลาก หรือเลือกวิชาค้างไว้รอแตะช่องปลายทาง
   if(document.querySelector('.overlay.open'))return true;
   var pm=document.getElementById('PM');if(pm&&pm.style.display==='block')return true;
   var a=document.activeElement;
@@ -1397,7 +1625,7 @@ function renderBL(q){
     }else if(hasTwoRooms(b)){
       roomChip='<span class="room-chip" title="ใช้ทั้งสองห้องพร้อมกันทุกคาบ">'+esc(b.room)+' + '+esc(b.room2)+'</span>';
     }else if(b.room)roomChip='<span class="room-chip">'+esc(b.room)+'</span>';
-    h+='<div class="bcard'+(full?' done':'')+(cs.cls==='cov-over'?' over-cap':'')+'" draggable="true" data-id="'+b.id+'"'
+    h+='<div class="bcard'+(full?' done':'')+(cs.cls==='cov-over'?' over-cap':'')+'" draggable="'+DND+'" data-id="'+b.id+'" onclick="tapCard(event,\''+b.id+'\')"'
       +' ondragstart="onDS(event,\''+b.id+'\')" ondragend="onDE()">'
       +'<div class="bcard-accent" style="background:'+accentCol+'"></div>'
       +'<div class="bcard-body">'
@@ -1481,7 +1709,8 @@ function renderCE(b,e,room,d,p,showGroup){
     var col=cs.cls==='cov-over'?'var(--red)':cs.cls==='cov-warn'?'var(--amber)':'var(--green)';
     capL='<div class="ce-cap" style="color:'+col+'">'+ns+(cs.cap?'/'+cs.cap:'')+'\u0e04\u0e19'+(cs.pct>100?' ⚠':'')+'</div>';
   }
-  return '<div class="ce '+fC(b.faculty)+' '+cs.cls+'" draggable="true"'
+  return '<div class="ce '+fC(b.faculty)+' '+cs.cls+'" draggable="'+DND+'" data-bid="'+b.id+'" data-room="'+esc(room)+'" data-d="'+d+'" data-p="'+p+'"'
+    +' onclick="tapCE(event,\''+b.id+'\',\''+room+'\',\''+d+'\','+p+')"'
     +' ondragstart="onDS(event,\''+b.id+'\',\''+room+'\',\''+d+'\','+p+')" ondragend="onDE()">'
     +'<div class="ce-sub">'+esc(sName(b))+'</div>'
     +(isSelfStudy(b)
@@ -1524,7 +1753,7 @@ function render(){
         var hasEntry=!!gE(room,d,p.id);
         var cls=fb?'fblock':(cdp?'conflict':(hasEntry?'occupied':''));
         h+='<td class="'+cls+'"';
-        if(drp)h+=' ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)" ondrop="oDrop(event,\''+room+'\',\''+d+'\','+p.id+')" onclick="cCell(\''+room+'\',\''+d+'\','+p.id+')"';
+        if(drp)h+=' data-dk="room" data-da="'+esc(room)+'" data-dd="'+d+'" data-dp="'+p.id+'" ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)" ondrop="oDrop(event,\''+room+'\',\''+d+'\','+p.id+')" onclick="cCell(\''+room+'\',\''+d+'\','+p.id+')"';
         h+='>';
         if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{var e=gE(room,d,p.id);if(e){var b=gB(e.blockId);if(b)h+=renderCE(b,e,room,d,p.id,true);}}
@@ -1534,7 +1763,7 @@ function render(){
         var cg=item, lch=isL(cg,p.id), drp2=!lch&&!fb;
         var cls2=lch?'lunch':(fb?'fblock':(cdp?'conflict':''));
         h+='<td class="'+cls2+'"';
-        if(drp2)h+=' ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)"'
+        if(drp2)h+=' data-dk="class" data-da="'+esc(cg)+'" data-dd="'+d+'" data-dp="'+p.id+'" ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)"'
           +" ondrop=\"oDropClass(event,'"+cg+"','"+d+"',"+p.id+")\""
           +" onclick=\"cCellClass('"+cg+"','"+d+"',"+p.id+")\"";
         h+='>';
@@ -1552,7 +1781,7 @@ function render(){
       }else{ // teacher
         var tch=item, drp3=!fb;
         h+='<td class="'+(fb?'fblock':(cdp?'conflict':''))+'"';
-        if(drp3)h+=' ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)"'
+        if(drp3)h+=' data-dk="teacher" data-da="'+esc(tch)+'" data-dd="'+d+'" data-dp="'+p.id+'" ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)"'
           +" ondrop=\"oDropTeacher(event,'"+tch+"','"+d+"',"+p.id+")\""
           +" onclick=\"cCellTeacher('"+tch+"','"+d+"',"+p.id+")\"";
         h+='>';
@@ -1605,7 +1834,7 @@ function oDLv(e){e.currentTarget.classList.remove('drop-ok');}
 function oDrop(e,room,d,p){
   e.preventDefault();e.currentTarget.classList.remove('drop-ok');
   if(!drag)return;
-  var b=gB(drag.bid);if(!b)return;
+  var bid=drag.bid,b=gB(bid);if(!b)return; // จำ bid ไว้ — ปุ่ม "แทนที่" ถูกกดหลัง dragend ล้าง drag ไปแล้ว
   if(isSelfStudy(b)){
     showConflict('วิชาเรียนด้วยตนเอง','• <b>'+esc(sName(b))+'</b> ไม่ต้องใช้ห้องเรียน<br>• ให้ไปวางในมุมมอง <b>"ดูตามชั้น"</b> แทน',null);
     return;
@@ -1616,7 +1845,7 @@ function oDrop(e,room,d,p){
   // helper: do the actual placement
   function doPlace(){
     if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
-    sE(room,d,p,{blockId:drag.bid,groups:groups});
+    sE(room,d,p,{blockId:bid,groups:groups});
     render();
   }
 
@@ -1700,7 +1929,7 @@ function oDrop(e,room,d,p){
 function oDropClass(e,cg,d,p){
   e.preventDefault();e.currentTarget.classList.remove('drop-ok');
   if(!drag)return;
-  var b=gB(drag.bid);if(!b)return;
+  var bid=drag.bid,b=gB(bid);if(!b)return;
   var groups=b.groups||[b.classGroup];
   // บล็อกคาบพักเที่ยงเด็ดขาด
   var lp=getLunchPeriod(groups);
@@ -1741,7 +1970,7 @@ function oDropClass(e,cg,d,p){
       function(){
         if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
         dE(room,d,p);
-        sE(room,d,p,{blockId:drag.bid,groups:groups});render();
+        sE(room,d,p,{blockId:bid,groups:groups});render();
       }
     );
     return;
@@ -1754,7 +1983,7 @@ function oDropClass(e,cg,d,p){
 function oDropTeacher(e,tch,d,p){
   e.preventDefault();e.currentTarget.classList.remove('drop-ok');
   if(!drag)return;
-  var b=gB(drag.bid);if(!b)return;
+  var bid=drag.bid,b=gB(bid);if(!b)return;
   var groups=b.groups||[b.classGroup];
   // บล็อกคาบพักเที่ยงเด็ดขาด
   var lp=getLunchPeriod(groups);
@@ -1792,7 +2021,7 @@ function oDropTeacher(e,tch,d,p){
       function(){
         if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
         dE(room,d,p);
-        sE(room,d,p,{blockId:drag.bid,groups:groups});render();
+        sE(room,d,p,{blockId:bid,groups:groups});render();
       }
     );
     return;
@@ -1803,6 +2032,7 @@ function oDropTeacher(e,tch,d,p){
 }
 
 function cCellClass(cg,d,p){
+  if(tapBlock())return; if(tapSel){tapDropTo("class",[cg,d,p]);return;}
   // Find blocks that match this class group and aren't full
   var av=blocks.filter(function(b){
     return !isFull(b)&&(b.groups||[b.classGroup]).indexOf(cg)>=0;
@@ -1866,6 +2096,7 @@ function pickSubjClass(bid,forced){
 }
 
 function cCellTeacher(tch,d,p){
+  if(tapBlock())return; if(tapSel){tapDropTo("teacher",[tch,d,p]);return;}
   var occupied=ttRooms().some(function(r){
     var e=gE(r,d,p);return e&&gB(e.blockId)&&gB(e.blockId).teacher===tch;
   });
@@ -1941,6 +2172,7 @@ confirmRoom=function(){
 };
 
 function cCell(room,d,p){
+  if(tapBlock())return; if(tapSel){tapDropTo("room",[room,d,p]);return;}
   if(gE(room,d,p))return;
   pickCtx={room:room,d:d,p:p};
   document.getElementById('pick-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e27\u0e34\u0e0a\u0e32: '+room+' — '+d+' \u0e04\u0e32\u0e1a '+p;
