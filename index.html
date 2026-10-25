@@ -236,6 +236,12 @@ input,select,textarea{font-family:inherit}
 .tt th.brk,.tt td.brk{width:26px;min-width:26px;max-width:26px;background:var(--paper);padding:0;position:relative;overflow:hidden}
 .brk-inner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-90deg);white-space:nowrap;font-size:10px;color:var(--ink3);text-align:center}
 .brk-inner .ptime{display:inline;margin-top:0;font-size:9px}
+.tl-label{display:block;font-size:10px;font-weight:700;color:var(--amber);padding:2px 4px}
+.tlunch-bar{display:none;align-items:center;gap:6px 12px;flex-wrap:wrap;padding:8px 16px;background:var(--amber-bg);border-bottom:1px solid var(--line);font-size:12.5px;color:var(--ink);flex-shrink:0}
+.tlunch-bar.show{display:flex}
+.tlunch-bar label{display:inline-flex;align-items:center;gap:4px;font-weight:600}
+.tlunch-bar label.warn{color:var(--red)}
+.tlunch-bar select{padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);font-size:12.5px;font-family:inherit}
 .tt td.drop-ok{background:var(--blue-bg)!important;outline:2px dashed var(--blue);outline-offset:-2px}
 .tt td.conflict{background:var(--red-bg)!important}
 
@@ -520,6 +526,7 @@ html.touch .ce-rm{display:none!important}
 #print-container .tt th.rh,#print-container .tt td.rl{width:20mm!important;background:#EEECE1!important;font-size:17pt!important;font-weight:700!important}
 #print-container .tt td{height:24mm!important;font-size:14.5pt!important;font-weight:700!important;line-height:1.18!important;background:transparent!important}
 #print-container .tt td.fblock{background:transparent!important;font-size:17pt!important}
+#print-container .tt td.tl-cell{background:#E69138!important;font-size:17pt!important} /* คาบพักเที่ยงของครู (ตารางครู) */
 #print-container .tt th.brk,#print-container .tt td.brk{width:7mm!important;min-width:0!important;background:#EEECE1!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:16mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
@@ -767,6 +774,7 @@ html.touch .ce-rm{display:none!important}
       <button class="ibtn" onclick="openConflictPanel()">⚠<span class="m-hide"> ดูปัญหา</span></button><div style="display:flex;gap:4px"><button class="ibtn" onclick="openPrintModal()" style="background:var(--red);color:#fff;border-color:var(--red)">📄 PDF</button></div>
     </div>
   </div>
+  <div class="tlunch-bar" id="tlunch-bar"></div>
   <div class="grid-wrap"><div class="print-header" id="print-header"><div><h1 id="print-title">ตารางเรียน PTECH</h1></div><div><p id="print-sub" style="font-size:9pt;color:#444;text-align:right"></p><p id="print-date" style="font-size:8pt;color:#888;text-align:right"></p></div></div><table class="tt" id="tt"></table></div>
 </main>
 
@@ -858,6 +866,7 @@ html.touch .ce-rm{display:none!important}
   <div class="modal modal-sm">
     <h2 id="pick-title">เลือกวิชา</h2>
     <div class="modal-sub" id="pick-sub"></div>
+    <button class="ibtn" id="pick-tlunch" style="display:none;background:var(--amber-bg);color:var(--amber);border-color:var(--amber);font-weight:700" onclick="pickSetTLunch()"></button>
     <input class="srch" type="text" id="pick-srch" placeholder="ค้นหา..." oninput="filterPickList(this.value)" style="border:1px solid var(--line);border-radius:var(--r);padding:6px 10px;width:100%">
     <div id="pick-list" style="overflow-y:auto;max-height:300px;display:flex;flex-direction:column;gap:3px;margin-top:4px"></div>
     <div class="modal-foot"><button class="ibtn" onclick="closePickModal()">ยกเลิก</button></div>
@@ -1171,6 +1180,7 @@ var _currentTermId = null;   // เทอมที่กำลังใช้ง
 var TEACHERS_BASE = TCH.slice();        // รายชื่อครูตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
 var ROOMS_BASE = Object.assign({},ROOM_CAP); // ห้องตั้งต้นของเทอม (สำหรับ diff ต่อ draft)
 var LUNCH_PERIOD = {};  // {className: periodNumber} — คาบพักเที่ยงของแต่ละชั้นเรียน ตั้งค่าโดย loadTermData()
+var TEACHER_LUNCH = {}; // {ครู:{วัน:คาบ}} — คาบพักเที่ยงของครูรายวัน (เก็บใน draft) วันที่ไม่ได้ตั้ง = ไม่ตรวจ ไม่แสดง
 var SPECIAL_SLOTS = []; // [{d,p,label}] — คาบพิเศษที่จัดวิชาไม่ได้ เช่น ชมรม/โฮมรูม ตั้งค่าโดย loadTermData()
 function defaultLunchPeriods(cl){
   var m={};
@@ -1277,6 +1287,7 @@ function mergeDraftData(base,local,server){
   out.roomsAdded=m3map(B.roomsAdded,L.roomsAdded,S.roomsAdded,st);
   out.roomsEditedCap=m3map(B.roomsEditedCap,L.roomsEditedCap,S.roomsEditedCap,st);
   out.roomsRemoved=m3list(B.roomsRemoved,L.roomsRemoved,S.roomsRemoved,st);
+  out.teacherLunch=unflat2(m3map(flat2(B.teacherLunch),flat2(L.teacherLunch),flat2(S.teacherLunch),st)); // คาบพักครู รวมรายครูรายวัน
   return {data:out,conflicts:st.conflicts};
 }
 function draftBody(d){var c=Object.assign({},d||{});delete c.ts;delete c.sid;return stab(c);} // เนื้อหา draft ไม่รวมเวลา/รหัสหน้าจอ
@@ -1476,6 +1487,64 @@ function escAttr(s){
     .replace(/</g,'&lt;')
     .replace(/>/g,'&gt;');
 }
+// ═══ คาบพักเที่ยงของครู (ตั้งรายครูรายวัน) ═══
+// เลือกได้เฉพาะ "ช่วงพักเที่ยง" = คาบที่ชั้นเรียนต่าง ๆ ใช้เป็นพักเที่ยง (ตามการตั้งค่าเทอม)
+function lunchWindow(){
+  var s={};Object.keys(LUNCH_PERIOD).forEach(function(c){if(LUNCH_PERIOD[c])s[LUNCH_PERIOD[c]]=1;});
+  return PD.map(function(p){return p.id;}).filter(function(id){return s[id];});
+}
+function tLunch(tch,d){ // คาบพักของครูในวันนั้น (null = ยังไม่ตั้ง หรือคาบนั้นไม่ได้อยู่ในช่วงพักแล้ว)
+  var p=tch&&TEACHER_LUNCH[tch]&&TEACHER_LUNCH[tch][d];
+  return p&&lunchWindow().indexOf(p)>=0?p:null;
+}
+function setTLunch(tch,d,p){
+  p=+p||0;
+  if(p){if(!TEACHER_LUNCH[tch])TEACHER_LUNCH[tch]={};TEACHER_LUNCH[tch][d]=p;}
+  else if(TEACHER_LUNCH[tch]){delete TEACHER_LUNCH[tch][d];if(!Object.keys(TEACHER_LUNCH[tch]).length)delete TEACHER_LUNCH[tch];}
+  setDirty(true);
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer=setTimeout(function(){if(_dirty)saveDraft();},5000);
+  render();
+}
+function teacherBusy(tch,d,p){ // ครูมีคาบสอนในช่องนี้ไหม
+  return ttRooms().some(function(r){var e=gE(r,d,p);if(!e||e.shadowOf)return false;var b=gB(e.blockId);return b&&b.teacher===tch;});
+}
+function getTeacherLunchIssues(){ // ครูที่ถูกจัดสอนในคาบพักเที่ยงที่ตั้งไว้
+  var out=[];
+  Object.keys(TEACHER_LUNCH).forEach(function(tch){DY.forEach(function(d){
+    var p=tLunch(tch,d);if(p&&teacherBusy(tch,d,p))out.push({who:tch,day:d,period:p});
+  });});
+  return out;
+}
+// วางวิชาลงคาบพักของครู → เตือน (กด "แทนที่" = วางต่อ) คืน true ถ้าขึ้นกล่องเตือนแล้ว
+function tLunchGuard(b,d,p,proceed){
+  if(!b||!hasRealTeacher(b)||tLunch(b.teacher,d)!==p)return false;
+  showConflict('คาบพักเที่ยงของครู',
+    '• วัน<b>'+esc(d)+'</b> คาบ '+p+' เป็นคาบพักเที่ยงของ <b>'+esc(b.teacher)+'</b><br>'
+    +'<span style="color:var(--amber)">กด “แทนที่” เพื่อวางต่อ (ครูจะไม่ได้พักเที่ยงในวันนี้)</span>',
+    proceed);
+  return true;
+}
+// แถบตั้งคาบพักเที่ยงของครู (เฉพาะมุมมอง "ดูตามครู") — เลือกได้เฉพาะคาบในช่วงพักเที่ยง
+function renderTLunchBar(){
+  var bar=document.getElementById('tlunch-bar');if(!bar)return;
+  var win=lunchWindow();
+  if(view!=='teacher'||!item||!win.length){bar.classList.remove('show');bar.innerHTML='';return;}
+  var h='<b>🍽 พักเที่ยงของ '+esc(item)+'</b>';
+  DY.forEach(function(d){
+    var cur=tLunch(item,d),bad=cur&&teacherBusy(item,d,cur);
+    h+='<label'+(bad?' class="warn" title="มีคาบสอนในคาบพักนี้"':'')+'>'+esc(d)+(bad?' ⚠':'')
+      +' <select data-d="'+esc(d)+'" onchange="setTLunch(document.getElementById(\'vsel\').value,this.getAttribute(\'data-d\'),this.value)">'
+      +'<option value="">—</option>'
+      +win.map(function(p){var pd=PD.find(function(x){return x.id===p;});return '<option value="'+p+'"'+(cur===p?' selected':'')+'>คาบ '+p+(pd?' ('+fmtT(pd.t)+')':'')+'</option>';}).join('')
+      +'</select></label>';
+  });
+  bar.innerHTML=h;bar.classList.add('show');
+}
+function goTeacher(t){setView('teacher');var s=document.getElementById('vsel');s.value=t;render();if(isMobileLayout())closeMobilePanels();}
+function pickSetTLunch(){var c=pickCtx;closePickModal();if(c&&c.mode==='teacher')setTLunch(c.tch,c.d,c.p);}
+function flat2(o){var f={};Object.keys(o||{}).forEach(function(a){Object.keys(o[a]||{}).forEach(function(b){f[a+'\u0001'+b]=o[a][b];});});return f;}
+function unflat2(f){var o={};Object.keys(f).forEach(function(k){var a=k.split('\u0001');if(!o[a[0]])o[a[0]]={};o[a[0]][a[1]]=f[k];});return o;}
 function isL(cg,p){
   return LUNCH_PERIOD[cg]===p;
 }
@@ -1693,7 +1762,20 @@ function renderCL(){
         +'</div>';
     });
   }
-  if(!confs.length&&!capIss.length){el.innerHTML='<div style="text-align:center;color:var(--green);padding:20px 0;font-size:12px">\u0e44\u0e21\u0e48\u0e21\u0e35\u0e1b\u0e31\u0e0d\u0e2b\u0e32 ✓</div>';return;}
+  // ครูถูกจัดสอนในคาบพักเที่ยงที่ตั้งไว้ (เตือน — แตะเพื่อไปดูตารางครูคนนั้น)
+  var tlIss=getTeacherLunchIssues();
+  if(tlIss.length){
+    h+='<div class="section-head">ครูไม่ได้พักเที่ยง</div>';
+    tlIss.forEach(function(x){
+      h+='<div class="conf-item warn" style="cursor:pointer" onclick="goTeacher(\''+escAttr(x.who)+'\')">'
+        +'<b>'+esc(x.who)+'</b><br>วัน'+esc(x.day)+' คาบ '+x.period+' — มีคาบสอนในคาบพักเที่ยง</div>';
+    });
+  }
+  var nIss=confs.length+tlIss.length;
+  document.getElementById('cc').textContent=nIss;
+  document.getElementById('sb-conf').innerHTML='ปัญหา: <b>'+nIss+'</b>';
+  if(nIss){chipConf.textContent='⚠ '+nIss+' ปัญหา';chipConf.style.display='';}
+  if(!confs.length&&!capIss.length&&!tlIss.length){el.innerHTML='<div style="text-align:center;color:var(--green);padding:20px 0;font-size:12px">\u0e44\u0e21\u0e48\u0e21\u0e35\u0e1b\u0e31\u0e0d\u0e2b\u0e32 ✓</div>';return;}
   confs.forEach(function(c){
     h+='<div class="conf-item"><b>'+c.type+'</b> — '+esc(c.who)+'<br>'+c.day+' \u0e04\u0e32\u0e1a '+c.period+' — '+c.rooms.join(', ')+'</div>';
   });
@@ -1781,14 +1863,15 @@ function render(){
         h+='</td>';
 
       }else{ // teacher
-        var tch=item, drp3=!fb;
-        h+='<td class="'+(fb?'fblock':(cdp?'conflict':''))+'"';
+        var tch=item, drp3=!fb, tl=!fb&&tLunch(tch,d)===p.id; // tl = คาบพักเที่ยงของครูวันนี้
+        h+='<td class="'+(fb?'fblock':(cdp?'conflict':(tl?(teacherBusy(tch,d,p.id)?'conflict':'lunch tlunch'):'')))+'"';
         if(drp3)h+=' data-dk="teacher" data-da="'+esc(tch)+'" data-dd="'+d+'" data-dp="'+p.id+'" ondragover="event.preventDefault()" ondragenter="oDEn(event)" ondragleave="oDLv(event)"'
           +" ondrop=\"oDropTeacher(event,'"+tch+"','"+d+"',"+p.id+")\""
           +" onclick=\"cCellTeacher('"+tch+"','"+d+"',"+p.id+")\"";
         h+='>';
         if(fb)h+='<span style="font-size:9px;color:var(--ink3);padding:2px 4px;display:block">'+esc(fb)+'</span>';
         else{
+          if(tl)h+='<span class="tl-label">🍽 พักเที่ยง</span>';
           ttRooms().forEach(function(r){
             var e=gE(r,d,p.id);
             if(e&&!e.shadowOf){var b=gB(e.blockId);if(b&&b.teacher===tch)h+=renderCE(b,e,r,d,p.id,true);}
@@ -1814,6 +1897,7 @@ function render(){
   var chipSched=document.getElementById('chip-sched');
   chipSched.textContent='✓ '+done+' ช่อง';
 
+  renderTLunchBar();
   renderBL(document.getElementById('srch').value);
   renderCL();
 }
@@ -1924,6 +2008,8 @@ function oDrop(e,room,d,p){
     return;
   }
 
+  // ── ตรวจ 5: คาบพักเที่ยงของครู (เตือน วางต่อได้) ──
+  if(tLunchGuard(b,d,p,doPlace))return;
   // ── ไม่มีปัญหา: วางเลย ──
   doPlace();
 }
@@ -1977,9 +2063,9 @@ function oDropClass(e,cg,d,p){
     );
     return;
   }
-  if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
-  sE(room,d,p,{blockId:drag.bid,groups:groups});
-  render();
+  var place=function(){if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}sE(room,d,p,{blockId:bid,groups:groups});render();};
+  if(tLunchGuard(b,d,p,place))return; // คาบพักเที่ยงของครู — เตือน วางต่อได้
+  place();
 }
 
 function oDropTeacher(e,tch,d,p){
@@ -2028,9 +2114,9 @@ function oDropTeacher(e,tch,d,p){
     );
     return;
   }
-  if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}
-  sE(room,d,p,{blockId:drag.bid,groups:groups});
-  render();
+  var place=function(){if(mv){var o=JSON.parse(mv);dE(o.room,o.d,o.p);}sE(room,d,p,{blockId:bid,groups:groups});render();};
+  if(tLunchGuard(b,d,p,place))return; // คาบพักเที่ยงของครู — เตือน วางต่อได้
+  place();
 }
 
 function cCellClass(cg,d,p){
@@ -2046,7 +2132,7 @@ function cCellClass(cg,d,p){
   });
   if(occupied)return;
   if(!av.length){toast('\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e23\u0e2d\u0e08\u0e31\u0e14\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a '+cg);return;}
-  pickCtx={cg:cg,d:d,p:p,mode:'class'};
+  pickCtx={cg:cg,d:d,p:p,mode:'class'};document.getElementById('pick-tlunch').style.display='none';
   document.getElementById('pick-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e27\u0e34\u0e0a\u0e32: '+cg+' \u2014 '+d+' \u0e04\u0e32\u0e1a '+p;
   document.getElementById('pick-sub').textContent='\u0e27\u0e34\u0e0a\u0e32\u0e17\u0e35\u0e48\u0e15\u0e23\u0e07\u0e2a\u0e32\u0e02\u0e32';
   document.getElementById('pick-srch').value='';
@@ -2077,8 +2163,11 @@ function renderPickListClass(av,q){
   });
 }
 function pickSubjClass(bid,forced){
+  if(pickCtx&&pickCtx.mode==='teacher'){pickSubj(bid);return;} // รายการเดียวกันใช้ในมุมมองครู — ส่งต่อให้ตัวจัดการโหมดครู
   if(!pickCtx||pickCtx.mode!=='class')return;
   var b=gB(bid);if(!b)return;
+  var c0=pickCtx; // คาบพักเที่ยงของครู → เตือนก่อน (กด "แทนที่" = วางต่อ)
+  if(!c0._tlOk&&tLunchGuard(b,c0.d,c0.p,function(){pickCtx=c0;c0._tlOk=1;pickSubjClass(bid,forced);})){closePickModal();return;}
   if(!forced&&needsSplitChoice(b)){
     var ctx=pickCtx; closePickModal();
     askSplitRoom(b,function(r){pickCtx=ctx;pickSubjClass(bid,r);});
@@ -2104,8 +2193,13 @@ function cCellTeacher(tch,d,p){
   });
   if(occupied)return;
   var av=blocks.filter(function(b){return !isFull(b)&&b.teacher===tch;});
-  if(!av.length){toast('\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e23\u0e2d\u0e08\u0e31\u0e14\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a '+tch);return;}
+  // \u0e0a\u0e48\u0e2d\u0e07\u0e27\u0e48\u0e32\u0e07\u0e43\u0e19\u0e0a\u0e48\u0e27\u0e07\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07 \u2192 \u0e21\u0e35\u0e1b\u0e38\u0e48\u0e21\u0e15\u0e31\u0e49\u0e07\u0e40\u0e1b\u0e47\u0e19\u0e04\u0e32\u0e1a\u0e1e\u0e31\u0e01\u0e02\u0e2d\u0e07\u0e04\u0e23\u0e39\u0e14\u0e49\u0e27\u0e22 (\u0e41\u0e21\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e23\u0e2d\u0e08\u0e31\u0e14)
+  var canLunch=lunchWindow().indexOf(p)>=0&&tLunch(tch,d)!==p;
+  if(!av.length&&!canLunch){toast('\u0e44\u0e21\u0e48\u0e21\u0e35\u0e27\u0e34\u0e0a\u0e32\u0e23\u0e2d\u0e08\u0e31\u0e14\u0e2a\u0e33\u0e2b\u0e23\u0e31\u0e1a '+tch);return;}
   pickCtx={tch:tch,d:d,p:p,mode:'teacher'};
+  var tlb=document.getElementById('pick-tlunch');
+  tlb.style.display=canLunch?'':'none';
+  tlb.textContent='\ud83c\udf7d \u0e15\u0e31\u0e49\u0e07\u0e27\u0e31\u0e19'+d+' \u0e04\u0e32\u0e1a '+p+' \u0e40\u0e1b\u0e47\u0e19\u0e1e\u0e31\u0e01\u0e40\u0e17\u0e35\u0e48\u0e22\u0e07\u0e02\u0e2d\u0e07\u0e04\u0e23\u0e39';
   document.getElementById('pick-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e27\u0e34\u0e0a\u0e32: '+tch+' \u2014 '+d+' \u0e04\u0e32\u0e1a '+p;
   document.getElementById('pick-sub').textContent='\u0e27\u0e34\u0e0a\u0e32\u0e42\u0e14\u0e22 '+tch;
   document.getElementById('pick-srch').value='';
@@ -2129,6 +2223,9 @@ filterPickList=function(q){
 // Override pickSubj to handle teacher mode
 var _origPickSubj=pickSubj;
 pickSubj=function(bid){
+  // คาบพักเที่ยงของครู → เตือนก่อน (กด "แทนที่" = วางต่อ)
+  var c=pickCtx,b0=gB(bid);
+  if(c&&!c._tlOk&&b0&&tLunchGuard(b0,c.d,c.p,function(){pickCtx=c;c._tlOk=1;pickSubj(bid);})){closePickModal();return;}
   if(pickCtx&&pickCtx.mode==='teacher'){
     var b=gB(bid);if(!b)return;
     if(b.room&&ROOM_CAP[b.room]){
@@ -2176,7 +2273,7 @@ confirmRoom=function(){
 function cCell(room,d,p){
   if(tapBlock())return; if(tapSel){tapDropTo("room",[room,d,p]);return;}
   if(gE(room,d,p))return;
-  pickCtx={room:room,d:d,p:p};
+  pickCtx={room:room,d:d,p:p};document.getElementById('pick-tlunch').style.display='none';
   document.getElementById('pick-title').textContent='\u0e40\u0e25\u0e37\u0e2d\u0e01\u0e27\u0e34\u0e0a\u0e32: '+room+' — '+d+' \u0e04\u0e32\u0e1a '+p;
   document.getElementById('pick-sub').textContent='\u0e04\u0e27\u0e32\u0e21\u0e08\u0e38\u0e2b\u0e49\u0e2d\u0e07 '+(ROOM_CAP[room]||'?')+' \u0e04\u0e19';
   document.getElementById('pick-srch').value='';
@@ -2656,7 +2753,7 @@ function removeTeacher(name){
   var used=countTeacherPeriods(name);
   var warn=used>0?'\n\n\u26a0 \u0e04\u0e23\u0e39\u0e04\u0e19\u0e19\u0e35\u0e49\u0e22\u0e31\u0e07\u0e21\u0e35 '+used+' \u0e04\u0e32\u0e1a\u0e17\u0e35\u0e48\u0e08\u0e31\u0e14\u0e44\u0e27\u0e49\u0e43\u0e19\u0e15\u0e32\u0e23\u0e32\u0e07\n\u0e04\u0e32\u0e1a\u0e40\u0e2b\u0e25\u0e48\u0e32\u0e19\u0e31\u0e49\u0e19\u0e08\u0e30\u0e22\u0e31\u0e07\u0e2d\u0e22\u0e39\u0e48\u0e41\u0e15\u0e48\u0e08\u0e30\u0e2b\u0e32\u0e22\u0e08\u0e32\u0e01\u0e21\u0e38\u0e21\u0e21\u0e2d\u0e07\u0e04\u0e23\u0e39 (\u0e01\u0e25\u0e32\u0e22\u0e40\u0e1b\u0e47\u0e19\u0e02\u0e49\u0e2d\u0e21\u0e39\u0e25\u0e01\u0e33\u0e1e\u0e23\u0e49\u0e32)':'';
   if(!confirm('\u0e25\u0e1a '+name+'?'+warn))return;
-  TCH=TCH.filter(function(t){return t!==name;});setDirty(true);
+  TCH=TCH.filter(function(t){return t!==name;});delete TEACHER_LUNCH[name];setDirty(true);
   popAddForms();renderTchList();
 }
 function renderTchList(){
@@ -2845,6 +2942,7 @@ function renameRoomEverywhere(old,nu){
 function renameTeacherEverywhere(old,nu){
   TCH=TCH.map(function(t){return t===old?nu:t;}).sort();
   blocks.forEach(function(b){if(b.teacher===old)b.teacher=nu;});
+  if(TEACHER_LUNCH[old]){TEACHER_LUNCH[nu]=TEACHER_LUNCH[old];delete TEACHER_LUNCH[old];} // ย้ายคาบพักเที่ยงตามชื่อใหม่
   if(view==='teacher'&&item===old)item=nu;
 }
 // เปลี่ยนชื่อชั้นเรียน: ชั้นเป็นข้อมูลระดับเทอม — อัปเดตทั้งเทอม, draft นี้ และ draft อื่นในเทอมเดียวกัน
@@ -3401,6 +3499,7 @@ function collectDraftData(){
     userBlocks:userBlocks,
     editedBlocks:editedBlocks,
     deletedIds:deletedIds,
+    teacherLunch:cloneJ(TEACHER_LUNCH),
     ts:Date.now(),
     dataVersion:DATA_VERSION,
     termId:_currentTermId
@@ -3409,6 +3508,7 @@ function collectDraftData(){
 
 function loadDraftData(data){
   if(!data)return;
+  TEACHER_LUNCH=cloneJ(data.teacherLunch||{});
   // 1. Start fresh from BLOCKS_DATA
   blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   // 2. Apply edits to existing blocks
@@ -3658,7 +3758,7 @@ function newDraft(){
   rememberOpenDraft();
   markVersion(Date.now()); hideNewVersionBanner(); setBase(null);
   document.getElementById('draft-name').value='ตารางใหม่';
-  initTT();blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
+  initTT();TEACHER_LUNCH={};blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
   setDirty(false);render();closeDraftsMgr();toast('Draft ใหม่พร้อมแล้ว');
 }
 // จำ draft ที่กำลังเปิดอยู่ ลง localStorage เพื่อให้รีเฟรชแล้วกลับมาที่ draft เดิม (ไม่ใช่ draft ts ใหม่สุด)
@@ -3731,7 +3831,7 @@ async function switchTerm(id){
     }else{
       _currentDraftId='draft_'+Date.now();
       document.getElementById('draft-name').value='ตารางใหม่';
-      blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
+      TEACHER_LUNCH={};blocks=BLOCKS_DATA.map(function(b){return Object.assign({},b,{groups:b.groups||[b.classGroup]});});
       setDirty(false);
       popAddForms();popViewSel();render();
     }
@@ -4099,7 +4199,7 @@ function loadTermData(t){
   DATA_VERSION = BLOCKS_DATA.length + '_' + (BLOCKS_DATA[0]&&BLOCKS_DATA[0].id||'');
   _currentTermId = t.id;
   try{localStorage.setItem('ptech_last_term',t.id);}catch(e){}
-  initTT();
+  initTT(); TEACHER_LUNCH={};
   updateTermBanner();
 }
 function updateTermBanner(){
@@ -4798,6 +4898,7 @@ function pmBuildTbl(pv,sel){
         else{ln(gtxt);ln(entRooms(r,e));}
         items.push({key:b.id+'|'+r,html:html});
       });
+      if(pv==='teacher'&&!items.length&&tLunch(sel,d)===p.id)return {cls:'tl-cell',key:null,html:'<div>พักเที่ยง</div>'}; // คาบพักเที่ยงของครูวันนี้
       return {cls:'',key:items.length===1?items[0].key:null,html:items.map(function(it){return it.html;}).join('<div class="pc-sep"></div>')};
     });
     for(var i=0;i<PD.length;i++){
@@ -4887,6 +4988,7 @@ function buildXlsxRows(pv,sel){
         }
         parts.push(lines.join('\n'));
       });
+      if(!parts.length&&pv==='teacher'&&tLunch(sel,d)===p.id){row.push('พักเที่ยง');return;} // คาบพักเที่ยงของครูวันนี้
       row.push(parts.join('\n\n'));
     });
     rows.push(row);
