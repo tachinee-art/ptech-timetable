@@ -527,6 +527,7 @@ html.touch .ce-rm{display:none!important}
 #print-container .tt td{height:24mm!important;font-size:14.5pt!important;font-weight:700!important;line-height:1.18!important;background:transparent!important}
 #print-container .tt td.fblock{background:transparent!important;font-size:17pt!important}
 #print-container .tt td.tl-cell{background:#E69138!important;font-size:17pt!important} /* คาบพักเที่ยงของครู (ตารางครู) */
+#print-container .pp-sub span{font-size:inherit!important;color:inherit!important;margin:0!important;display:inline!important} /* กันกฎพิมพ์เก่าของ td.fblock span */
 #print-container .tt th.brk,#print-container .tt td.brk{width:7mm!important;min-width:0!important;background:#EEECE1!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .tt th.lunch-col,#print-container .tt td.lunch-col{width:16mm!important;min-width:0!important;background:#E69138!important;padding:0!important;position:relative!important;overflow:hidden!important}
 #print-container .brk-inner{position:absolute!important;top:50%!important;left:50%!important;
@@ -4731,7 +4732,8 @@ var TH_NOBREAK=['พื้นฐาน','เบื้องต้น','ประ
   'เครื่องปรับอากาศ','ทำความเย็น','นิวเมติกส์','ไฮดรอลิกส์','ไมโครคอนโทรลเลอร์','เขียนแบบ','ออกแบบ','วิเคราะห์','โครงสร้าง',
   'อัลกอริทึม','ฐานข้อมูล','ข้อมูล','เครือข่าย','คอมพิวเตอร์','โปรแกรม','อินเทอร์เน็ต','แอปพลิเคชัน','เว็บไซต์','สารสนเทศ',
   'เทคโนโลยี','คอนเทนต์','วิดีโอ','เชิงวัตถุ','สื่อสาร','ประชาสัมพันธ์','ต้อนรับ','ท่องเที่ยว','โรงแรม','อุตสาหกรรม',
-  'พาณิชยกรรม','ธุรกิจ','ขนาดย่อม','ใบสำคัญ','ซื้อขาย','จัดซื้อ','จำหน่าย','ลงทุน','ผลผลิต','วิทยาการ'];
+  'พาณิชยกรรม','ธุรกิจ','ขนาดย่อม','ใบสำคัญ','ซื้อขาย','จัดซื้อ','จำหน่าย','ลงทุน','ผลผลิต','วิทยาการ',
+  'คิดเชิงออกแบบ','เชิงโครงสร้าง','นวัตกรรม','ดิจิทัล','ค้าปลีก','ออนไลน์'];
 // คำเชื่อม/คำนำหน้าคำนาม — ติดกับคำถัดไปเสมอ และเป็นจุดตัดที่อ่านลื่น (ตัดก่อนคำเหล่านี้)
 var TH_LEAD=['เพื่อ','และ','สำหรับ','ใน','ของ','กับ','ด้วย','หรือ','ตาม','แห่ง','โดย','การ','ความ','ผู้','นัก'];
 var _thSeg=null,_thDict=null;
@@ -4758,10 +4760,11 @@ function ppUnits(raw){
   tok.forEach(function(t,k){
     if(/^\s+$/.test(t)){sp=true;glue=false;return;}
     var last=units[units.length-1], rest=tok.slice(k+1).join('').trim();
-    // ติดกับหน่วยก่อนหน้า: ต่อจากคำเชื่อม / เลขสั้นท้ายชื่อ (เช่น "ภาษาอังกฤษ 2") / "การ" "ความ" ที่เป็นคำท้ายชื่อ
-    if(last&&((glue&&!sp)||/^[0-9๐-๙IVX]{1,3}$/.test(t)||(!rest&&(t==='การ'||t==='ความ')))){last.t+=(sp?' ':'')+t;last.z=(glue&&!sp)?'':t;}
+    var closeP=/^[)\]}.,:;!?%]+$/.test(t), openP=/^[(\[{]+$/.test(t);
+    // ติดกับหน่วยก่อนหน้า: ต่อจากคำเชื่อม/วงเล็บเปิด / วงเล็บปิด-จุด-จุลภาค (เช่น "(ปวส.)") / เลขสั้นท้ายชื่อ (เช่น "ภาษาอังกฤษ 2") / "การ" "ความ" ที่เป็นคำท้ายชื่อ
+    if(last&&((glue&&!sp)||(closeP&&!sp)||/^[0-9๐-๙IVX]{1,3}$/.test(t)||(!rest&&(t==='การ'||t==='ความ')))){last.t+=(sp?' ':'')+t;last.z=(glue&&!sp)||closeP?'':t;}
     else units.push({t:(sp?' ':'')+t,z:t,c:(sp||TH_LEAD.indexOf(t)>=0)?0:1+((thShort(t)||(last&&thShort(last.z)))?1.5:0)});
-    glue=TH_LEAD.indexOf(t)>=0; sp=false;
+    glue=TH_LEAD.indexOf(t)>=0||openP; sp=false;
   });
   return units;
 }
@@ -4794,6 +4797,17 @@ function layoutPpSub(el){
   var W=el.clientWidth*0.88;if(!W)return;
   var cs=getComputedStyle(el),base=parseFloat(cs.fontSize);
   if(!_ppCtx)_ppCtx=document.createElement('canvas').getContext('2d');
+  if(!isName&&raw.indexOf('|')>=0){
+    // ผู้ใช้ใส่ | เอง → ขึ้นบรรทัดใหม่ตรงทุก | เสมอ แล้วย่อตัวอักษรให้บรรทัดที่ยาวที่สุดพอดีช่อง (ต่ำสุด 60%)
+    var parts=units.map(function(u){return u.t;}),fs=base;
+    for(;fs>base*0.6;fs-=0.5*96/72){
+      _ppCtx.font=cs.fontWeight+' '+fs+'px '+cs.fontFamily;
+      if(Math.max.apply(null,parts.map(function(l){return _ppCtx.measureText(l).width;}))<=W)break;
+    }
+    if(fs<base-0.01)el.style.fontSize=Math.max(fs,base*0.6)+'px';
+    el.innerHTML=parts.map(function(l){return '<div style="white-space:nowrap">'+esc(l)+'</div>';}).join('');
+    return;
+  }
   function join(a,b){return units.slice(a,b).map(function(u){return u.t;}).join('').trim();}
   function best(n,size){ // วิธีแบ่ง n บรรทัดที่ดีที่สุด: ทุกบรรทัดไม่เกินความกว้างช่อง ตัดตรงจุดที่อ่านลื่น และยาวใกล้เคียงกัน
     _ppCtx.font=cs.fontWeight+' '+size+'px '+cs.fontFamily;
@@ -4817,7 +4831,13 @@ function layoutPpSub(el){
     return null;
   }
   var r=tryRange(base,mid,2)||(isName?null:tryRange(base,mid,3))||tryRange(mid,min,isName?2:3);
-  if(!r){el.style.fontSize=min+'px';return;} // ไม่พอจริง ๆ — ปล่อยให้เบราว์เซอร์ตัดบรรทัดเอง (ไม่ล้นช่อง)
+  if(!r&&!isName)r=tryRange(mid,min,Math.min(6,units.length)); // ชื่อยาวมาก/ช่องแคบ → ยอมเกิน 3 บรรทัด (สูงสุด 6) ใช้ตัวใหญ่ที่สุดที่พอ
+  if(!r){
+    // ยังไม่พอจริง ๆ (มีคำเดียวยาวกว่าช่อง) — ให้ตัดบรรทัดได้เฉพาะระหว่างหน่วยคำเท่านั้น ไม่ให้เบราว์เซอร์ตัดกลางคำ (เช่น "ธุร|กิจ")
+    el.style.fontSize=min+'px';
+    el.innerHTML=units.map(function(u){return '<span style="white-space:nowrap">'+esc(u.t)+'</span>';}).join('<wbr>');
+    return;
+  }
   if(size<base-0.01)el.style.fontSize=size+'px';
   el.innerHTML=r.lines.map(function(l){return '<div style="white-space:nowrap">'+esc(l)+'</div>';}).join('');
 }
