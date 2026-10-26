@@ -2388,10 +2388,10 @@ function getSelGrps(elId){
 }
 
 function popEditSels(){
-  var h='';TCH.forEach(function(t){h+='<option>'+esc(t)+'</option>';});
+  var h='';TCH.forEach(function(t){h+='<option value="'+esc(t)+'">'+esc(t)+'</option>';});
   document.getElementById('edit-tch').innerHTML=h;
   h='<option value="">\u2014 \u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38 \u2014</option>';
-  RM.forEach(function(r){h+='<option>'+esc(r)+'</option>';});
+  RM.forEach(function(r){h+='<option value="'+esc(r)+'">'+esc(r)+'</option>';});
   document.getElementById('edit-room-sel').innerHTML=h;
   document.getElementById('edit-room2').innerHTML=h;
 }
@@ -2463,6 +2463,17 @@ function saveEdit(){
       }
     });});});
   }
+  // เลิก "เรียนด้วยตนเอง" → ย้ายคาบจากห้องเสมือนไปห้องจริงที่เลือก (เฉพาะคาบที่ห้องว่าง)
+  if(!self&&wasSelf){
+    var vr2=selfRoomFor(b),stuck=0;
+    if(tt[vr2])DY.forEach(function(d){PD.forEach(function(p){
+      var e=gE(vr2,d,p.id);if(!e)return;
+      if(newRoom&&ROOM_CAP[newRoom]&&!gE(newRoom,d,p.id)){delete tt[vr2][d][p.id];restoreEntry(newRoom,d,p.id,Object.assign({},e));}
+      else stuck++;
+    });});
+    if(stuck)toast(newRoom?'ห้อง '+newRoom+' ไม่ว่าง '+stuck+' คาบ — คาบเหล่านั้นยังอยู่ในช่องเรียนด้วยตนเอง ย้ายเองได้ในมุมมองชั้น'
+                          :'ยังไม่ได้เลือกห้อง — '+stuck+' คาบยังอยู่ในช่องเรียนด้วยตนเอง','warn');
+  }
   b.groups    =newGroups;
   b.classGroup=newGroups[0];
   b.periodsPerWeek=parseInt(document.getElementById('edit-periods').value)||b.periodsPerWeek;
@@ -2501,10 +2512,10 @@ function setAddTab(t){
 }
 function popAddForms(){
   var h='<option value="">\u2014 \u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38 \u2014</option>';
-  TCH.forEach(function(t){h+='<option>'+esc(t)+'</option>';});
+  TCH.forEach(function(t){h+='<option value="'+esc(t)+'">'+esc(t)+'</option>';});
   document.getElementById('at-sel').innerHTML=h;
   h='<option value="">\u2014 \u0e44\u0e21\u0e48\u0e23\u0e30\u0e1a\u0e38 \u2014</option>';
-  RM.forEach(function(r){h+='<option>'+esc(r)+'</option>';});
+  RM.forEach(function(r){h+='<option value="'+esc(r)+'">'+esc(r)+'</option>';});
   document.getElementById('ar-sel').innerHTML=h;
   buildGrpGrid('add-grp-grid',[]);
 }
@@ -3507,6 +3518,13 @@ function collectDraftData(){
   };
 }
 
+// ชื่อครูเทียบแบบไม่สนช่องว่างเกิน — ใช้ซ่อมวิชาที่ชื่อครูไม่ตรงรายชื่อเพราะช่องว่าง
+function normName(s){return String(s==null?"":s).replace(/\s+/g," ").trim();}
+function fixTeacherNames(){
+  var map={},n=0;TCH.forEach(function(t){map[normName(t)]=t;});
+  blocks.forEach(function(b){if(b.teacher&&TCH.indexOf(b.teacher)<0){var t=map[normName(b.teacher)];if(t){b.teacher=t;n++;}}});
+  return n;
+}
 function loadDraftData(data){
   if(!data)return;
   TEACHER_LUNCH=cloneJ(data.teacherLunch||{});
@@ -3598,10 +3616,13 @@ function loadDraftData(data){
       });
     });
   });
+  // ซ่อมชื่อครูในวิชาที่เพี้ยนเพราะช่องว่าง (ช่องเลือกครูรุ่นก่อนตัดช่องว่างเกินทิ้ง) ให้ตรงกับรายชื่อครู
+  var nFix=fixTeacherNames();
   if(fuzzyCount>0){
     toast('⚠ '+fuzzyCount+' คาบถูกจับคู่วิชาใหม่อัตโนมัติ (id เดิมหาไม่เจอ ใช้ชื่อวิชา+กลุ่มแทน) — โปรดตรวจสอบความถูกต้อง','warn');
   }
   setDirty(false);
+  if(nFix){setDirty(true);clearTimeout(_autoSaveTimer);_autoSaveTimer=setTimeout(function(){if(_dirty)saveDraft();},5000);} // บันทึกชื่อครูที่ซ่อมแล้ว
   popAddForms();popViewSel();render();
 }
 
