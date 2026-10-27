@@ -3749,6 +3749,7 @@ async function renderDraftList(){
       +'<div style="font-size:11px;color:var(--ink3);margin-top:2px">'+dtStr+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:6px;flex-shrink:0">'
+      +'<button class="ibtn di-dup" data-did="'+esc(d.id)+'" style="font-size:11px" title="คัดลอกเป็น draft ใหม่">⧉ คัดลอก</button>'
       +'<button class="ibtn di-exp" data-did="'+esc(d.id)+'" style="font-size:11px" title="ส่งออก">⬇</button>'
       +'<button class="ibtn di-del" data-did="'+esc(d.id)+'" style="font-size:11px;color:var(--red);border-color:var(--red-mid)">ลบ</button>'
       +'</div>'
@@ -3758,6 +3759,9 @@ async function renderDraftList(){
   // Bind events via JS (not inline onclick — avoids quote escaping issues)
   el.querySelectorAll('.di-load').forEach(function(btn){
     btn.onclick=function(){loadDraft(this.dataset.did);};
+  });
+  el.querySelectorAll('.di-dup').forEach(function(btn){
+    btn.onclick=function(e){e.stopPropagation();duplicateDraft(this.dataset.did);};
   });
   el.querySelectorAll('.di-exp').forEach(function(btn){
     btn.onclick=function(e){e.stopPropagation();exportDraft(this.dataset.did);};
@@ -3782,6 +3786,31 @@ async function loadDraft(id){
     closeDraftsMgr();
     toast('โหลด Draft: '+(res.data.name||''));
   }catch(e){toast('Error: '+e.message,'err');}
+}
+// คัดลอก draft เป็นอันใหม่ในเทอมเดียวกัน แล้วเปิดสำเนาขึ้นมาทำงานต่อ (ตัวต้นฉบับไม่ถูกแตะ)
+async function duplicateDraft(id){
+  if(_dirty)await saveDraft(); // บันทึกงานที่ค้างก่อน — ถ้าคัดลอก draft ที่เปิดอยู่ สำเนาจะได้มีงานล่าสุดครบ
+  try{
+    var res=await supabase.from('drafts').select('*').eq('id',id).single();
+    if(res.error||!res.data){toast('ไม่พบ Draft','err');return;}
+    var name=prompt('ชื่อ draft สำเนา','(สำเนา) '+(res.data.name||'Draft'));
+    if(name===null)return;
+    name=name.trim()||'(สำเนา) '+(res.data.name||'Draft');
+    var newId='draft_'+Date.now(),ts=Date.now();
+    var data=Object.assign({},res.data.data||{},{ts:ts}); delete data.sid;
+    var ins=await supabase.from('drafts').insert({id:newId,term_id:res.data.term_id||_currentTermId,name:name,data:data,ts:ts,updated_by:currentUserEmail});
+    if(ins.error)throw ins.error;
+    _currentDraftId=newId;
+    rememberOpenDraft();
+    markVersion(ts);
+    hideNewVersionBanner();
+    document.getElementById('draft-name').value=name;
+    loadDraftData(data);
+    setBase(data);
+    subscribeToDraft(newId);
+    closeDraftsMgr();
+    toast('คัดลอกแล้ว — กำลังเปิด: '+name,'ok');
+  }catch(e){toast('คัดลอกไม่สำเร็จ: '+e.message,'err');}
 }
 async function deleteDraft(id){
   if(!confirm('ลบ Draft นี้?'))return;
